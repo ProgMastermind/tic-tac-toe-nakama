@@ -47,16 +47,19 @@ func (m *Match) MatchInit(
 	}
 
 	code, _ := params["code"].(string) // optional — only set for private rooms
+	creator, _ := params["creator"].(string)
 
 	expectedUsers := readStringSlice(params, "expected_users")
 
 	state := NewMatchState(matchID, mode, expectedUsers)
 	state.Code = code
+	state.Creator = creator
 	state.JoinDeadlineMs = time.Now().UnixMilli() + int64(JoinDeadlineSeconds*1000)
 
-	// Creator for the label is the first expected user, if any — which is
-	// exactly how create_private_match builds the params.
-	if len(expectedUsers) > 0 {
+	// If the caller supplied `creator` explicitly (private rooms do), use
+	// it. Otherwise fall back to the first expected user — that's the
+	// shape M2's matchmaker hook will pass in.
+	if state.Creator == "" && len(expectedUsers) > 0 {
 		state.Creator = expectedUsers[0]
 	}
 

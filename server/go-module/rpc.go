@@ -133,10 +133,16 @@ func RpcCreatePrivateMatch(
 		return "", runtime.NewError("could not generate a unique room code", 13) // INTERNAL
 	}
 
+	// NOTE: expected_users stays empty for private rooms. The creator is
+	// tracked via the match label (Creator field) so self-join can be
+	// refused, but populating expected_users here would trigger the
+	// matchmaker-gate in MatchJoinAttempt and reject any joiner who
+	// wasn't on the list. For private rooms the first two unique
+	// socket.joinMatch calls win the slots — creator is just the first.
 	matchID, err := nk.MatchCreate(ctx, MatchModuleName, map[string]interface{}{
-		"mode":           mode,
-		"code":           code,
-		"expected_users": []string{userID},
+		"mode":    mode,
+		"code":    code,
+		"creator": userID,
 	})
 	if err != nil {
 		logger.Error("create_private_match: MatchCreate user=%s err=%v", userID, err)
