@@ -8,6 +8,7 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "composite": true,
+    "types": ["node"],
     "outDir": "./dist-tsc"
   },
   "include": ["vite.config.ts"]

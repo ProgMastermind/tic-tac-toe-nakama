@@ -1,0 +1,75 @@
+/*
+ * Full-viewport status screens shown while the Nakama provider is
+ * connecting or after a connection failure. Visually spare — a quiet
+ * eyebrow and a single message — so a brief flash while connecting does
+ * not feel like a broken page.
+ */
+
+.wrap {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--content-gutter);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 28rem;
+  text-align: center;
+}
+
+.pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  margin: 0 auto var(--space-2);
+  box-shadow: 0 0 0 0 var(--color-accent-soft);
+  animation: pulse 1800ms var(--ease-out) infinite;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  letter-spacing: var(--letter-tight);
+  color: var(--color-ink);
+}
+
+.body {
+  color: var(--color-ink-muted);
+  line-height: var(--line-normal);
+}
+
+.retry {
+  margin-top: var(--space-4);
+  align-self: center;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  background: var(--color-ink);
+  color: var(--color-bg-raised);
+  transition: background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.retry:hover {
+  background: var(--color-ink-muted);
+}
+.retry:active {
+  transform: scale(0.98);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-accent-soft);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(178, 52, 44, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(178, 52, 44, 0);
+  }
+}

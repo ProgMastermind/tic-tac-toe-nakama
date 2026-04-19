@@ -1,15 +1,32 @@
 import { Route, Routes } from "react-router-dom";
 
-import Home from "./pages/Home";
+import { Connecting, ConnectionError } from "@/components/AppStatus";
+import { NakamaProvider, useNakama } from "@/context/NakamaProvider";
+import Home from "@/pages/Home";
 
-// Route tree stays flat and boring — every screen is a page component that
-// owns its own layout. The NakamaProvider will slot in at this level in the
-// next commit; for now the scaffold just renders Home.
+// The app tree:
+//   NakamaProvider (env → Client → Session → Socket)
+//     └── StatusGate (Connecting / Error / Ready)
+//         └── Routes (Home, Game, etc.)
+//
+// Placing the gate inside the provider keeps page components free of
+// "is-the-socket-alive" branches — they just render when they render.
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="*" element={<Home />} />
-    </Routes>
+    <NakamaProvider>
+      <StatusGate>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="*" element={<Home />} />
+        </Routes>
+      </StatusGate>
+    </NakamaProvider>
   );
+}
+
+function StatusGate({ children }: { children: React.ReactNode }) {
+  const { status, error } = useNakama();
+  if (status === "connecting") return <Connecting />;
+  if (status === "error") return <ConnectionError message={error ?? "Unknown error"} />;
+  return <>{children}</>;
 }
