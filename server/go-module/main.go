@@ -35,8 +35,15 @@ func InitModule(
 		return fmt.Errorf("register match %q: %w", MatchModuleName, err)
 	}
 
-	// Subsequent commits register the private-room RPCs, the matchmaker
-	// hook, and the global leaderboard here.
+	if err := initializer.RegisterRpc("create_private_match", RpcCreatePrivateMatch); err != nil {
+		return fmt.Errorf("register rpc create_private_match: %w", err)
+	}
+	if err := initializer.RegisterRpc("join_private_match", RpcJoinPrivateMatch); err != nil {
+		return fmt.Errorf("register rpc join_private_match: %w", err)
+	}
+
+	// The matchmaker hook and the global leaderboard are wired in here in
+	// subsequent milestones.
 
 	logger.Info("tic-tac-toe module: ready")
 	return nil
