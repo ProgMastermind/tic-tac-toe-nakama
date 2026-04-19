@@ -7,7 +7,7 @@ updated to match.
 
 **Repo**: https://github.com/ProgMastermind/tic-tac-toe-nakama
 **Current branch**: `main`
-**HEAD as of this writing**: `31a9a86`
+**HEAD as of this writing**: `603f0b6` (M2 complete, unpushed)
 
 ---
 
@@ -40,22 +40,31 @@ Two browsers can open a private room, join via 4-char code, and play a
 full match (classic or timed) end-to-end against a real Nakama server
 running in Docker. Smoke-tested on Windows with Chrome + Edge.
 
-**M2 — public matchmaker + reconnect** 🔜 **NEXT**
-**M3 — leaderboard + stats**
+**M2 — public matchmaker + reconnect** ✅ **DONE**
+Two browsers on the Home page both click **Find a match**, Nakama
+pairs them, both auto-navigate into the same authoritative match with
+the right marks. Refreshing mid-game rehydrates to the active match.
+Network drops trigger a reconnect pill banner (1s → 30s backoff) and
+the socket re-attaches without losing state. Back-to-lobby after a
+match end lands cleanly on `/` without bouncing.
+
+**M3 — leaderboard + stats** 🔜 **NEXT**
 **M4 — production deploy** (DigitalOcean + Vercel)
 
 ---
 
-## 3 · M1 — what's actually built
+## 3 · Shipped so far (M1 + M2)
 
 ### 3.1 Server (Go plugin)
 
 Files in [server/go-module/](server/go-module/):
 
-- [main.go](server/go-module/main.go) — `InitModule` registers the match handler plus `create_private_match` and `join_private_match` RPCs.
-- [state.go](server/go-module/state.go) — pure types, opcodes, rule helpers. The only file the leaderboard work (M3) and matchmaker work (M2) will really need to extend.
-- [match_handler.go](server/go-module/match_handler.go) — the full `runtime.Match` lifecycle.
+- [main.go](server/go-module/main.go) — `InitModule` registers the match handler, private-room RPCs, `get_current_match`, and the matchmaker-matched hook. Leaderboard init lands here in M3.
+- [state.go](server/go-module/state.go) — pure types, opcodes, rule helpers. The file M3 will extend when stats need new fields.
+- [match_handler.go](server/go-module/match_handler.go) — the full `runtime.Match` lifecycle. `MatchJoin` writes each player's `active_match` row; `MatchLeave` clears it immediately for finished matches; `MatchTerminate` clears anything left as a safety net.
 - [rpc.go](server/go-module/rpc.go) — private-room RPCs with crypto-random codes, per-user cooldown, input sanitisation.
+- [matchmaker.go](server/go-module/matchmaker.go) — `matchmakerMatched` hook opens an authoritative match with `expected_users` populated so `MatchJoinAttempt` admits only the paired users.
+- [active_match.go](server/go-module/active_match.go) — storage read/write/clear helpers plus `get_current_match` RPC. Collection `active_match`, key `current`, owner-readable only.
 - [state_test.go](server/go-module/state_test.go) — 14 unit tests covering every win line and every `ValidateMove` rejection path.
 
 **Wire protocol (opcodes)** — mirrored in [client/src/types/match.ts](client/src/types/match.ts):
@@ -65,7 +74,7 @@ Files in [server/go-module/](server/go-module/):
 | 1    | C→S       | `{cell}` — place a mark                   |
 | 2    | S→C       | full state snapshot (authoritative)       |
 | 3    | S→C       | match ended (`reason`, `winner`, `line`)  |
-| 4    | C→S       | rematch request (M2/M3 placeholder)       |
+| 4    | C→S       | rematch request (placeholder, unwired)    |
 | 5    | S→C       | per-user validation error (never broadcast) |
 
 **Match lifecycle, per tick (tickRate=1):**
@@ -87,15 +96,31 @@ Files in [server/go-module/](server/go-module/):
 waiting rooms — **do not** reintroduce `+label.open:true` (Bleve's
 boolean indexing breaks this silently; see §5).
 
+**Public matchmaker flow (M2):**
+
+- Client calls `socket.addMatchmaker("+properties.mode:<mode>", 2, 2, {mode}, {})`.
+  String properties surface under `properties.*` in the query DSL.
+- Server's `matchmakerMatched` hook reads `mode` off `entries[0].GetProperties()` and calls `nk.MatchCreate(MatchModuleName, {mode, expected_users: [userIds]})`. Returning the match id causes Nakama to auto-deliver a `matchmaker_matched` event (with a short-lived `token`) to both clients.
+- Client's `onmatchmakermatched` multiplex handler navigates to `/game/<matchId>?t=<token>`. `useMatch` passes the token to the first `socket.joinMatch` call.
+
+**Rehydrate flow (M2):**
+
+- On `MatchJoin` (first time a user acquires a mark), server writes `{matchId, mark, mode}` to `(active_match, current, userId)`.
+- `get_current_match` RPC reads that row. Returns `{active: false}` if absent.
+- `MatchLeave` clears the row **immediately** when the match is already finished — prevents a rehydrate race from bouncing a user back into the end overlay after they click Back to Lobby.
+- `MatchTerminate` clears rows for every known player as a safety net.
+- Client-side `RehydrateGate` calls the RPC once on boot (first time `status=ready`), and navigates from `/` to `/game/:matchId` if a row exists. It is a **boot-time one-shot** — reconnects do not re-trigger it.
+
 ### 3.2 Client (React)
 
 Files in [client/src/](client/src/):
 
-- [context/NakamaProvider.tsx](client/src/context/NakamaProvider.tsx) — owns `Client`, `Session`, `Socket`; registers handler multiplexers; single-fire connect on mount.
-- [hooks/useMatch.ts](client/src/hooks/useMatch.ts) — joins/leaves a match, routes opcodes through a reducer, exposes `makeMove`.
+- [App.tsx](client/src/App.tsx) — router; wraps `NakamaProvider → StatusGate → ReconnectingBanner + RehydrateGate → Routes`.
+- [context/NakamaProvider.tsx](client/src/context/NakamaProvider.tsx) — owns `Client`, `Session`, `Socket`; multiplexes `onmatchdata` / `onmatchpresence` / `onmatchmakermatched`; initial connect + exponential-backoff reconnect loop (1s → 30s cap); exposes `isReconnecting`, `reconnectGeneration`, `fetchCurrentMatch`.
+- [hooks/useMatch.ts](client/src/hooks/useMatch.ts) — joins/leaves a match (optional matchmaker token on first join), routes opcodes through a reducer, exposes `makeMove`.
 - [lib/nakama.ts](client/src/lib/nakama.ts) — env-var validation, device-id lifecycle (`crypto.randomUUID` → localStorage).
-- [pages/Home.tsx](client/src/pages/Home.tsx) — lobby: display-name editor, mode toggle, create / join flows.
-- [pages/Game.tsx](client/src/pages/Game.tsx) — board + players + timer + waiting state + end overlay.
+- [pages/Home.tsx](client/src/pages/Home.tsx) — lobby: display-name editor, mode toggle, **Find a match** (matchmaker), create / join flows, cancellable search state.
+- [pages/Game.tsx](client/src/pages/Game.tsx) — board + players + timer + waiting state + end overlay. Reads `?t=<token>` from URL for matchmaker-origin joins.
 - [components/ui/](client/src/components/ui/) — `Button`, `TextInput`, `ModeToggle` (primitives).
 - [components/game/](client/src/components/game/) — `Board`, `Cell`, `Timer`, `PlayerBadge`, `EndOverlay`.
 - [styles/tokens.css](client/src/styles/tokens.css) — the design system (palette, type, spacing, motion).
@@ -146,6 +171,10 @@ re-litigate them without a real reason.
 | Device ID auth (no email) | Zero friction for the assignment. Linking email is a future item, noted as deferred. |
 | Creator → X, second joiner → O | Deterministic, independent of whoever physically joined the match goroutine first. |
 | `StatsWritten` flag on state | Match finish broadcasts in `MatchLoop`; `MatchTerminate` is safety-net only. Prevents double leaderboard writes in M3. |
+| Matchmaker passes `expected_users` (not `creator`) | Opposite of private rooms: here we *want* the allow-list behaviour in `MatchJoinAttempt` so nobody else can claim the paired slot. |
+| `active_match` row cleared on `MatchLeave` when finished | Not just `MatchTerminate`. The 30-tick terminate delay is too long — a client that lands on `/` in that window would bounce right back into the end overlay via rehydrate. |
+| `RehydrateGate` is boot-time one-shot (ref-gated) | Auto-navigate only on the first successful connect this session. Reconnects don't re-trigger — `useMatch` already resumes the in-game session naturally when a new socket attaches. |
+| Matchmaker token via URL query `?t=...` | Threaded through the route because only the first join needs it; on refresh the user is already a known presence and Nakama accepts the join as a reconnect with no token. |
 | Single accent colour, no gradients | Deliberate visual language (chess.com / Linear / Notion feel). User explicitly rejected AI-default "purple-pink gradient" look. |
 
 ---
@@ -164,58 +193,15 @@ A reminder list so the next session doesn't re-discover these.
 8. **Same-browser tabs share localStorage → same device ID → same Nakama user.** The self-join guard in `join_private_match` catches this with a friendly message.
 9. **Windows doesn't support `buildmode=plugin`** — any Go plugin build has to happen inside the pluginbuilder Docker image. Unit tests still run fine natively.
 10. **CockroachDB is Nakama's default DB** — if `--database.address` doesn't reach the binary, you'll see cryptic connection-refused to `127.0.0.1:26257` instead of a clear error.
+11. **BuildKit ignores `--pull=never` for base-image metadata.** Even with the image cached in the daemon's containerd store, BuildKit dials `auth.docker.io` to revalidate digest. When the corporate proxy is flaky, this stalls the whole build. Workaround: pre-pull via `docker pull heroiclabs/nakama:3.38.0` (daemon path has working proxy), then `docker compose up --build --pull=never`.
+12. **Docker Desktop 29.x displays `HTTP Proxy: http.docker.internal:3128` in `docker info` even when upstream proxy is configured.** That's the internal gateway — the real upstream (Intel proxy) sits behind it. Don't assume the proxy is unset based on `docker info` alone; test with `docker pull alpine:latest` instead.
+13. **Rehydrate races match-end.** If the active_match row lives until `MatchTerminate` (30 empty ticks), a user who clicks Back to Lobby can be bounced right back. Clear the row on `MatchLeave` when the match is already `StatusFinished`. On the client, `RehydrateGate` is a boot-time one-shot — don't re-run on every reconnect.
 
 ---
 
 ## 6 · Remaining work
 
-### 6.1 M2 — Public matchmaker + reconnect
-
-**Goal:** a player clicks "Find a match", gets paired with another
-random player in the same mode (classic/timed), auto-joins. Plus:
-refreshing the page mid-game resumes the session instead of stranding you.
-
-**Components to build:**
-
-1. **`RegisterMatchmakerMatched` hook** in [main.go](server/go-module/main.go) — pull `mode` out of the matchmaker properties, `nk.MatchCreate("tictactoe", {mode, expected_users: [all userIds]})`, return matchId.
-
-2. **Client-side matchmaker flow:**
-   - New button on Home: "Find a match" (classic / timed).
-   - Calls `socket.addMatchmaker(query, 2, 2, {mode: ...}, {})` where `query = "+properties.mode:classic"` (string props become `properties.*` in queries).
-   - Handle `socket.onmatchmakermatched` → `socket.joinMatch(matched.match_id, matched.token)`.
-   - Cancellable: `socket.removeMatchmaker(ticket)` if user navigates away or clicks Cancel.
-
-3. **`get_current_match` RPC** in [rpc.go](server/go-module/rpc.go) — reads a storage row `{collection: "active_match", key: userId, value: {matchId, mark}}` and returns it (or empty). Written in `MatchJoin`, cleared in `MatchTerminate`.
-
-4. **Client rehydrate** in [NakamaProvider.tsx](client/src/context/NakamaProvider.tsx):
-   - On mount, after auth succeeds, call `get_current_match`.
-   - If a match is active → navigate to `/game/:matchId`.
-   - Game page's `useMatch` will then `socket.joinMatch` as usual (server already treats the user as a known player → reconnect path, no new slot).
-
-5. **Socket disconnect reconnect** in [NakamaProvider.tsx](client/src/context/NakamaProvider.tsx):
-   - Replace the current "just flip to error" with exponential backoff (1s, 2s, 4s, 8s, max 30s).
-   - On reconnect success, re-run `get_current_match`.
-
-**New state fields to add:** none on server; existing `MatchState` already tracks `DisconnectAtMs` for grace.
-
-**New files:**
-- No new files required. All changes to existing `main.go`, `rpc.go`, `match_handler.go` (small: add storage write in MatchJoin, clear in MatchTerminate), `NakamaProvider.tsx`, `Home.tsx`, `useMatch.ts`.
-
-**Verification:**
-- Two browsers both click "Find a match (classic)" with no pre-shared code → both land in the same game.
-- Mid-game, refresh one browser → game page reloads without losing state.
-- Kill WiFi for 10s → client reconnects automatically and resumes.
-- Open 4 browsers, all hit "Find a match" simultaneously → two separate matches spawn, don't cross-talk.
-
-**Commit plan:**
-1. `feat(server): register matchmaker_matched hook`
-2. `feat(client): public matchmaker flow on home page`
-3. `feat(server): active_match storage + get_current_match RPC`
-4. `feat(client): rehydrate on mount + socket reconnect with backoff`
-
----
-
-### 6.2 M3 — Leaderboard + per-user stats
+### 6.1 M3 — Leaderboard + per-user stats
 
 **Goal:** every finished match updates win/loss/draw counts and a global
 "wins" leaderboard. Home and Game pages show the top 10 and the caller's
@@ -269,7 +255,7 @@ current streak.
 
 ---
 
-### 6.3 M4 — Production deploy
+### 6.2 M4 — Production deploy
 
 **Goal:** the live URL from the assignment brief. Game reachable at a
 public hostname, backed by a real Nakama instance with TLS, running
@@ -333,7 +319,7 @@ under a process supervisor with daily backups.
 - **In-match chat** — not in the brief.
 - **Email/password linking** — device-id is the only auth; account recovery is a future concern.
 - **Mobile wrapper** (React Native / Capacitor) — the web client is responsive and the brief accepts web.
-- **ELO / skill matchmaking** — M2 uses pure queue + mode; ranking can come later.
+- **ELO / skill matchmaking** — M2 ships pure queue + mode; ranking can come later.
 - **Spectator mode** — interesting but not asked for.
 
 ---
@@ -342,8 +328,8 @@ under a process supervisor with daily backups.
 
 If you're reading this after a chat compaction:
 
-1. Run `git log --oneline` — the state described in §3 should match.
-2. `docker ps` — if Nakama + Postgres are up, skip to the task. Otherwise `npm run dev`.
+1. Run `git log --oneline` — top commits should be `603f0b6` (back-to-lobby fix) → `5c83dd3` → `4c3bed8` → `c759226` → `d2bde27` → `2daf466` (M1 plan snapshot). If not, the state described in §3 may have drifted; trust the code.
+2. `docker ps` — if Nakama + Postgres are up, skip to the task. Otherwise `npm run dev`. **Known proxy gotcha:** if BuildKit stalls on `[internal] load metadata`, pre-pull the base images via `docker pull heroiclabs/nakama:3.38.0` + `docker pull heroiclabs/nakama-pluginbuilder:3.38.0`, then run with `--pull=never` (see §5 gotcha 11).
 3. Read `PLAN.md` §4 (decisions) and §5 (gotchas) before touching server code. **Most bugs we've hit are foot-guns listed there.**
 4. **Commit cadence: one meaningful chunk per commit, conventional-style messages (`feat(server): ...`, `fix(client): ...`). Don't push until asked.**
-5. Start at §6.1 (M2) unless directed otherwise.
+5. Start at §6.1 (M3 — leaderboard + stats) unless directed otherwise.
