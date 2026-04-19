@@ -95,3 +95,17 @@ export interface JoinPrivateMatchResponse {
   matchId: string;
   mode: GameMode;
 }
+
+// ---- Active-match rehydrate RPC --------------------------------------------
+
+/**
+ * Response from `get_current_match`. `active: false` means the caller is
+ * not in a tracked match (the common boot-time case). When `active: true`,
+ * the remaining fields identify where to rehydrate.
+ */
+export interface GetCurrentMatchResponse {
+  active: boolean;
+  matchId?: string;
+  mark?: Mark;
+  mode?: GameMode;
+}

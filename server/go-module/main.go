@@ -41,6 +41,9 @@ func InitModule(
 	if err := initializer.RegisterRpc("join_private_match", RpcJoinPrivateMatch); err != nil {
 		return fmt.Errorf("register rpc join_private_match: %w", err)
 	}
+	if err := initializer.RegisterRpc("get_current_match", RpcGetCurrentMatch); err != nil {
+		return fmt.Errorf("register rpc get_current_match: %w", err)
+	}
 
 	if err := initializer.RegisterMatchmakerMatched(matchmakerMatched); err != nil {
 		return fmt.Errorf("register matchmaker_matched: %w", err)

@@ -178,6 +178,7 @@ func (m *Match) MatchJoin(
 		// A reconnect clears any pending forfeit timer.
 		delete(s.DisconnectAtMs, userID)
 
+		newPlayer := false
 		if _, already := s.MarkByUserID[userID]; !already {
 			mark := MarkX
 			if _, taken := s.UserIDByMark[MarkX]; taken {
@@ -185,6 +186,7 @@ func (m *Match) MatchJoin(
 			}
 			s.MarkByUserID[userID] = mark
 			s.UserIDByMark[mark] = userID
+			newPlayer = true
 		}
 
 		if _, have := s.Usernames[userID]; !have {
@@ -195,6 +197,20 @@ func (m *Match) MatchJoin(
 				if u := accounts[0].GetUser(); u != nil && u.Username != "" {
 					s.Usernames[userID] = u.Username
 				}
+			}
+		}
+
+		// Record the active-match pointer so this user can rehydrate if
+		// they refresh or lose the socket. Only run on first-time joiners
+		// — a reconnect already has a row and rewriting it is harmless
+		// but wastes a storage round-trip per heartbeat.
+		if newPlayer {
+			if err := writeActiveMatch(ctx, nk, userID, s.MatchID, s.MarkByUserID[userID], s.Mode); err != nil {
+				// Rehydrate is a convenience, not a correctness
+				// requirement. Log and carry on so a storage blip does
+				// not prevent the match from starting.
+				logger.Warn("match=%s active_match write user=%s err=%v",
+					s.MatchID, userID, err)
 			}
 		}
 	}
@@ -412,7 +428,19 @@ func (m *Match) MatchTerminate(
 	s := state.(*MatchState)
 	logger.Info("MatchTerminate match=%s grace=%d status=%s statsWritten=%v",
 		s.MatchID, graceSeconds, s.Status, s.StatsWritten)
-	// Stats / active-match cleanup plug into here when those subsystems land.
+
+	// Clear rehydrate pointers for every player we ever saw. Iterating
+	// MarkByUserID rather than Presences captures players who dropped
+	// mid-match but never returned — their row would otherwise linger
+	// and redirect them into a ghost match on next app load.
+	for userID := range s.MarkByUserID {
+		if err := clearActiveMatch(ctx, nk, userID); err != nil {
+			logger.Warn("match=%s active_match clear user=%s err=%v",
+				s.MatchID, userID, err)
+		}
+	}
+
+	// Stats writes plug into here (safety net) when that subsystem lands.
 	return s
 }
 
