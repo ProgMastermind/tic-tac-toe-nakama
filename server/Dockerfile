@@ -1,9 +1,13 @@
-# syntax=docker/dockerfile:1.7
-
 # -----------------------------------------------------------------------------
 # This Dockerfile MUST be built with the repository root as the build context
 # so that both `server/` and `deploy/` are reachable. See deploy/docker-compose.yml
 # for the compose build.context and build.dockerfile wiring.
+#
+# We deliberately do NOT pin a `# syntax=docker/dockerfile:...` frontend.
+# BuildKit ships with a perfectly adequate built-in frontend for our usage
+# (multi-stage, COPY --from, ENV, simple RUN). The external frontend would
+# require an extra network fetch from docker.io at build time, which is a
+# cheap win to avoid — one less thing that can fail behind a flaky network.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
