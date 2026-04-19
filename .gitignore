@@ -1,0 +1,31 @@
+# Node / Vite
+node_modules/
+dist/
+.vite/
+*.local
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Go
+server/go-module/vendor/
+*.so
+*.exe
+*.test
+*.out
+
+# Nakama local data
+deploy/data/
+deploy/caddy_data/
+deploy/caddy_config/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Harness-local
+.claude/
