@@ -72,6 +72,16 @@ export interface NakamaContextValue {
   registerMatchPresenceHandler(
     handler: (e: Parameters<NonNullable<Socket["onmatchpresence"]>>[0]) => void,
   ): () => void;
+  /**
+   * Same multiplexing contract for matchmaker_matched notifications. Fired
+   * when the Nakama matchmaker pairs the caller with an opponent — the
+   * payload carries the authoritative match id and a short-lived join
+   * token. Only one consumer tends to listen at a time (the lobby) but
+   * multiplexing keeps the API shape consistent.
+   */
+  registerMatchmakerMatchedHandler(
+    handler: (m: Parameters<NonNullable<Socket["onmatchmakermatched"]>>[0]) => void,
+  ): () => void;
 }
 
 const NakamaContext = createContext<NakamaContextValue | null>(null);
@@ -101,6 +111,9 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
   );
   const presenceHandlers = useRef(
     new Set<(e: Parameters<NonNullable<Socket["onmatchpresence"]>>[0]) => void>(),
+  );
+  const matchmakerHandlers = useRef(
+    new Set<(m: Parameters<NonNullable<Socket["onmatchmakermatched"]>>[0]) => void>(),
   );
 
   // ---- Initial connect. Effect runs once on mount. ---------------------
@@ -138,6 +151,9 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
         };
         liveSocket.onmatchpresence = (e) => {
           for (const handler of presenceHandlers.current) handler(e);
+        };
+        liveSocket.onmatchmakermatched = (m) => {
+          for (const handler of matchmakerHandlers.current) handler(m);
         };
 
         await liveSocket.connect(next, /*appearOnline*/ true);
@@ -200,6 +216,15 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const registerMatchmakerMatchedHandler = useCallback<
+    NakamaContextValue["registerMatchmakerMatchedHandler"]
+  >((handler) => {
+    matchmakerHandlers.current.add(handler);
+    return () => {
+      matchmakerHandlers.current.delete(handler);
+    };
+  }, []);
+
   const value = useMemo<NakamaContextValue>(
     () => ({
       status,
@@ -212,6 +237,7 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
       setDisplayName,
       registerMatchDataHandler,
       registerMatchPresenceHandler,
+      registerMatchmakerMatchedHandler,
     }),
     [
       status,
@@ -224,6 +250,7 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
       setDisplayName,
       registerMatchDataHandler,
       registerMatchPresenceHandler,
+      registerMatchmakerMatchedHandler,
     ],
   );
 

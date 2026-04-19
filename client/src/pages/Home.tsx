@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
@@ -16,17 +16,24 @@ import type {
 import styles from "./Home.module.css";
 
 /**
- * Home is the lobby. Two calls available:
+ * Home is the lobby. Three entry points into a match:
  *
- *   1. Create a private room → navigate to /game/:matchId with the code
- *      visible so the user can share it with a friend.
- *   2. Join with a 4-character code → navigate to /game/:matchId.
- *
- * Public matchmaking lands in M2 under its own "Find a match" affordance
- * but is not wired up from this screen yet.
+ *   1. Find a match → the Nakama matchmaker pairs the caller with another
+ *      random player on the same mode and auto-navigates both into the
+ *      new authoritative match when the pairing resolves.
+ *   2. Create a private room → opens an authoritative match with a
+ *      shareable 4-character code.
+ *   3. Join with a code → hops into an existing private room.
  */
 export default function Home() {
-  const { client, session, displayName, setDisplayName } = useNakama();
+  const {
+    client,
+    session,
+    socket,
+    displayName,
+    setDisplayName,
+    registerMatchmakerMatchedHandler,
+  } = useNakama();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<GameMode>("classic");
@@ -35,6 +42,101 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
   const [lobbyError, setLobbyError] = useState<string | null>(null);
+
+  // Matchmaker flow state. `ticket` is non-null while a search is in
+  // progress. A ref mirrors it so the unmount cleanup and the matched
+  // callback both see the live value without stale-closure gymnastics.
+  const [ticket, setTicket] = useState<string | null>(null);
+  const [matchmaking, setMatchmaking] = useState(false);
+  const ticketRef = useRef<string | null>(null);
+  const modeRef = useRef<GameMode>(mode);
+
+  useEffect(() => {
+    ticketRef.current = ticket;
+  }, [ticket]);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  const searching = ticket !== null;
+  const anyBusy = creating || joining || matchmaking || searching;
+
+  // ---- Matchmaker: subscribe to matched notifications ----------------
+  //
+  // We register once on mount; the handler navigates whenever a match
+  // arrives that corresponds to our outstanding ticket. The server is
+  // the source of truth for match assignment, so we don't try to match
+  // ticket ids too defensively — any matched notification while we're
+  // still subscribed was meant for us.
+  useEffect(() => {
+    const unsubscribe = registerMatchmakerMatchedHandler((matched) => {
+      // nakama-js exposes snake_case on event payloads.
+      const matchId = (matched as { match_id?: string }).match_id;
+      const token = (matched as { token?: string }).token;
+      if (!matchId) return;
+
+      ticketRef.current = null;
+      setTicket(null);
+      setMatchmaking(false);
+
+      const params = new URLSearchParams();
+      if (token) params.set("t", token);
+      params.set("mm", "1"); // flag that this was a matchmaker origin
+      const query = params.toString();
+      navigate(`/game/${matchId}${query ? `?${query}` : ""}`);
+    });
+    return unsubscribe;
+  }, [navigate, registerMatchmakerMatchedHandler]);
+
+  // ---- Unmount safety: if the user navigates away mid-search, cancel
+  //      the ticket so they don't get dropped into a stale match later.
+  useEffect(() => {
+    return () => {
+      const stale = ticketRef.current;
+      if (stale && socket) {
+        socket.removeMatchmaker(stale).catch(() => {});
+      }
+    };
+  }, [socket]);
+
+  // ---- Find a match --------------------------------------------------
+  const handleFindMatch = useCallback(async () => {
+    if (!socket) return;
+    setLobbyError(null);
+    setMatchmaking(true);
+    try {
+      // String properties surface under `properties.*` in the query DSL.
+      // Pinning +properties.mode:<mode> on both sides guarantees the
+      // server only matches compatible players.
+      const resp = await socket.addMatchmaker(
+        `+properties.mode:${mode}`,
+        /*minCount*/ 2,
+        /*maxCount*/ 2,
+        { mode },
+        {},
+      );
+      ticketRef.current = resp.ticket;
+      setTicket(resp.ticket);
+    } catch (err) {
+      setLobbyError(await formatRpcError(err, "Matchmaker is unreachable."));
+    } finally {
+      setMatchmaking(false);
+    }
+  }, [socket, mode]);
+
+  const handleCancelMatchmaking = useCallback(async () => {
+    const current = ticketRef.current;
+    if (!socket || !current) return;
+    try {
+      await socket.removeMatchmaker(current);
+    } catch {
+      // Ticket may have already matched between click and remove; treat
+      // the client-side state as the source of truth for UI.
+    } finally {
+      ticketRef.current = null;
+      setTicket(null);
+    }
+  }, [socket]);
 
   // ---- Create private room ------------------------------------------
   const handleCreate = useCallback(async () => {
@@ -107,22 +209,43 @@ export default function Home() {
         <div className={styles.cardHead}>
           <h2 className={styles.cardTitle}>Start a game</h2>
           <p className={styles.cardLead}>
-            Pick a mode and open a private room — share the code with a
-            friend, or drop someone else&rsquo;s code in to join theirs.
+            Pick a mode and find an opponent — or spin up a private room
+            to play with a specific friend.
           </p>
         </div>
 
-        <ModeToggle value={mode} onChange={setMode} disabled={creating || joining} />
+        <ModeToggle value={mode} onChange={setMode} disabled={anyBusy} />
 
-        <Button
-          size="lg"
-          block
-          onClick={handleCreate}
-          loading={creating}
-          disabled={!session || joining}
-        >
-          Create a private room
-        </Button>
+        {searching ? (
+          <div className={styles.searching} role="status" aria-live="polite">
+            <span className={styles.searchingDot} aria-hidden />
+            <span className={styles.searchingText}>
+              <span className={styles.searchingTitle}>
+                Finding a {mode} opponent…
+              </span>
+              <span className={styles.searchingSub}>
+                Matchmaker is live. You&rsquo;ll be dropped in automatically.
+              </span>
+            </span>
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={handleCancelMatchmaking}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="lg"
+            block
+            onClick={handleFindMatch}
+            loading={matchmaking}
+            disabled={!socket || !session || anyBusy}
+          >
+            Find a match
+          </Button>
+        )}
 
         {lobbyError ? (
           <p role="alert" className={styles.cardError}>
@@ -130,7 +253,18 @@ export default function Home() {
           </p>
         ) : null}
 
-        <div className={styles.divider}>or</div>
+        <div className={styles.divider}>or play with a friend</div>
+
+        <Button
+          variant="secondary"
+          size="lg"
+          block
+          onClick={handleCreate}
+          loading={creating}
+          disabled={!session || joining || searching || matchmaking}
+        >
+          Create a private room
+        </Button>
 
         <form onSubmit={handleJoin} noValidate>
           <div className={styles.joinRow}>
@@ -154,7 +288,13 @@ export default function Home() {
               size="lg"
               type="submit"
               loading={joining}
-              disabled={!session || creating || code.trim().length !== 4}
+              disabled={
+                !session ||
+                creating ||
+                searching ||
+                matchmaking ||
+                code.trim().length !== 4
+              }
             >
               Join
             </Button>

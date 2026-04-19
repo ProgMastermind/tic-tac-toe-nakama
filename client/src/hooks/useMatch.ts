@@ -69,7 +69,16 @@ export interface UseMatchResult {
 
 const ERROR_CLEAR_MS = 2200;
 
-export function useMatch(matchId: string | undefined): UseMatchResult {
+export function useMatch(
+  matchId: string | undefined,
+  /**
+   * Optional matchmaker-issued join token. Required the first time a
+   * matchmaker-origin match is attached; ignored on subsequent calls (e.g.
+   * a refresh-triggered rehydrate, where the user is already a known
+   * presence and Nakama treats the join as a reconnect).
+   */
+  joinToken?: string,
+): UseMatchResult {
   const { socket, session, registerMatchDataHandler } = useNakama();
   const [{ state, endReason, pendingError }, dispatch] = useReducer(reducer, {
     state: null,
@@ -116,7 +125,10 @@ export function useMatch(matchId: string | undefined): UseMatchResult {
 
     (async () => {
       try {
-        await socket.joinMatch(matchId);
+        // The nakama-js typings accept (id, token?, metadata?). Passing
+        // undefined as token is safe and is the normal path for private
+        // rooms and rehydrate reconnects.
+        await socket.joinMatch(matchId, joinToken);
         if (cancelled) return;
         joinedMatchIdRef.current = matchId;
         setJoined(true);
@@ -141,6 +153,10 @@ export function useMatch(matchId: string | undefined): UseMatchResult {
       }
       setJoined(false);
     };
+    // joinToken intentionally excluded: changing it mid-mount should not
+    // re-trigger a join, and for a fresh matchId the caller passes a
+    // fresh token naturally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, matchId]);
 
   // Auto-clear transient per-user errors so they don't stick around.

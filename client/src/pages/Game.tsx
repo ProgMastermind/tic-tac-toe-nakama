@@ -19,10 +19,15 @@ export default function Game() {
   const { matchId } = useParams<{ matchId: string }>();
   const [searchParams] = useSearchParams();
   const codeFromLobby = searchParams.get("code") ?? "";
+  // Matchmaker-origin matches arrive with a short-lived `t` token in the
+  // URL. useMatch uses it on its single initial joinMatch call. On
+  // reload / rehydrate there is no token but the user is a known
+  // presence so the server accepts the join as a reconnect.
+  const matchmakerToken = searchParams.get("t") ?? undefined;
   const navigate = useNavigate();
 
   const { state, myUserId, myMark, endReason, pendingError, joined, makeMove, leave } =
-    useMatch(matchId);
+    useMatch(matchId, matchmakerToken);
 
   const [copied, setCopied] = useState(false);
 
