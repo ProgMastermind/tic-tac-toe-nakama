@@ -54,7 +54,13 @@ func (m *Match) MatchInit(
 	state.Code = code
 	state.JoinDeadlineMs = time.Now().UnixMilli() + int64(JoinDeadlineSeconds*1000)
 
-	labelJSON, err := (MatchLabel{Mode: mode, Code: code, Open: true}).Encode()
+	// Creator for the label is the first expected user, if any — which is
+	// exactly how create_private_match builds the params.
+	if len(expectedUsers) > 0 {
+		state.Creator = expectedUsers[0]
+	}
+
+	labelJSON, err := (MatchLabel{Mode: mode, Code: code, Creator: state.Creator, Open: true}).Encode()
 	if err != nil {
 		logger.Error("MatchInit label encode failed (match=%s): %v", matchID, err)
 		labelJSON = ""
@@ -212,7 +218,12 @@ func (m *Match) MatchJoin(
 // whether the room still accepts a second player and is flipped to false
 // once both players have joined.
 func labelFor(logger runtime.Logger, s *MatchState, open bool) string {
-	j, err := (MatchLabel{Mode: s.Mode, Code: s.Code, Open: open}).Encode()
+	j, err := (MatchLabel{
+		Mode:    s.Mode,
+		Code:    s.Code,
+		Creator: s.Creator,
+		Open:    open,
+	}).Encode()
 	if err != nil {
 		logger.Warn("label encode failed: %v", err)
 		return ""

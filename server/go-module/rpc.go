@@ -185,6 +185,19 @@ func RpcJoinPrivateMatch(
 		return "", runtime.NewError(err.Error(), 5) // NOT_FOUND
 	}
 
+	// Guard against a user trying to join their own room. This happens when
+	// the two tabs share a device id (e.g. two regular Chrome windows on the
+	// same profile). Give a clear message instead of letting them crash into
+	// a waiting room that can never start.
+	if creator := matchCreatorFromLabel(match); creator == userID {
+		logger.Warn("join_private_match: user=%s tried to join their own room code=%s",
+			userID, code)
+		return "", runtime.NewError(
+			"you already created this room — open the second browser in incognito so it has a different identity",
+			9, // FAILED_PRECONDITION
+		)
+	}
+
 	mode := ""
 	if lv := match.GetLabel(); lv != nil {
 		mode = extractLabelMode(lv.GetValue())
@@ -278,14 +291,18 @@ func randomCode() (string, error) {
 }
 
 // findOpenMatchByCode returns the first open private match carrying the
-// supplied code, or an error if none exist. Any code that has already
-// filled up (label.open:false) is skipped — joining a full room should
-// look like a not-found to the caller.
+// supplied code. Full rooms are excluded via maxSize=1 rather than a
+// boolean label filter — Bleve's indexing of JSON booleans is
+// inconsistent across Nakama versions, and since the creator's presence
+// is attached only after their own socket.joinMatch, a room that's
+// waiting for the second player has presence size in {0, 1}. Two
+// presences means the match has filled up from the server's point of
+// view and is not join-able.
 func findOpenMatchByCode(ctx context.Context, nk runtime.NakamaModule, code string) (*api.Match, error) {
 	min := 0
-	max := 2
+	max := 1
 	matches, err := nk.MatchList(ctx, 5, true, "", &min, &max,
-		fmt.Sprintf("+label.code:%s +label.open:true", code))
+		fmt.Sprintf("+label.code:%s", code))
 	if err != nil {
 		return nil, fmt.Errorf("room lookup failed: %w", err)
 	}
@@ -299,12 +316,38 @@ func findOpenMatchByCode(ctx context.Context, nk runtime.NakamaModule, code stri
 // the empty string if the label is missing or malformed, so callers can
 // continue without treating a parse failure as fatal.
 func extractLabelMode(labelJSON string) string {
-	if labelJSON == "" {
-		return ""
-	}
-	var l MatchLabel
-	if err := json.Unmarshal([]byte(labelJSON), &l); err != nil {
+	l, ok := decodeLabel(labelJSON)
+	if !ok {
 		return ""
 	}
 	return l.Mode
+}
+
+// matchCreatorFromLabel returns the creator userId encoded in the match
+// label, or the empty string if the label is malformed or predates the
+// field. Used by join_private_match to guard against same-user self-join.
+func matchCreatorFromLabel(match *api.Match) string {
+	if match == nil {
+		return ""
+	}
+	lv := match.GetLabel()
+	if lv == nil {
+		return ""
+	}
+	l, ok := decodeLabel(lv.GetValue())
+	if !ok {
+		return ""
+	}
+	return l.Creator
+}
+
+func decodeLabel(labelJSON string) (MatchLabel, bool) {
+	var l MatchLabel
+	if labelJSON == "" {
+		return l, false
+	}
+	if err := json.Unmarshal([]byte(labelJSON), &l); err != nil {
+		return l, false
+	}
+	return l, true
 }

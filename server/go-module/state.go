@@ -105,6 +105,11 @@ type MatchState struct {
 	// code work end-to-end.
 	Code string
 
+	// Creator is the userId who opened a private room, surfaced on the
+	// label so the join RPC can reject a caller trying to join their own
+	// room (symptom of two browser tabs sharing a localStorage device id).
+	Creator string
+
 	// Board is row-major — indices 0..2 top, 3..5 middle, 6..8 bottom.
 	Board [9]string
 
@@ -178,7 +183,11 @@ func NewMatchState(matchID, mode string, expectedUsers []string) *MatchState {
 type MatchLabel struct {
 	Mode string `json:"mode"`
 	Code string `json:"code,omitempty"` // 4-char private room code, empty for public matches
-	Open bool   `json:"open"`           // false once two players have joined
+	// Creator userId of the player who opened the room. Exposed in the
+	// label so the join RPC can refuse a caller trying to join their own
+	// room (typically caused by two tabs sharing a localStorage device id).
+	Creator string `json:"creator,omitempty"`
+	Open    bool   `json:"open"` // false once two players have joined
 }
 
 // Encode marshals the label for MatchDispatcher.MatchLabelUpdate. A non-nil
