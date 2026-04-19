@@ -42,8 +42,11 @@ func InitModule(
 		return fmt.Errorf("register rpc join_private_match: %w", err)
 	}
 
-	// The matchmaker hook and the global leaderboard are wired in here in
-	// subsequent milestones.
+	if err := initializer.RegisterMatchmakerMatched(matchmakerMatched); err != nil {
+		return fmt.Errorf("register matchmaker_matched: %w", err)
+	}
+
+	// The global leaderboard is wired in here in a subsequent milestone.
 
 	logger.Info("tic-tac-toe module: ready")
 	return nil
