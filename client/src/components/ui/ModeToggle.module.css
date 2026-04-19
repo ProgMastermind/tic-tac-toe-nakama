@@ -1,0 +1,65 @@
+/*
+ * Segmented control. A gentle animated thumb slides between options and
+ * both labels stay readable throughout — classic polish, no flash.
+ */
+
+.root {
+  --thumb-inset: 4px;
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: var(--thumb-inset);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.option {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  text-align: center;
+  border-radius: var(--radius-pill);
+  transition: color var(--dur-base) var(--ease-out);
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+}
+
+.optionActive {
+  color: var(--color-ink);
+}
+
+.sub {
+  font-weight: 400;
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-subtle);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.optionActive .sub {
+  color: var(--color-ink-muted);
+}
+
+.thumb {
+  position: absolute;
+  inset: var(--thumb-inset);
+  width: calc(50% - var(--thumb-inset));
+  background: var(--color-bg-raised);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  transform: translate3d(0, 0, 0);
+  transition: transform var(--dur-base) var(--ease-out);
+  pointer-events: none;
+}
+
+.thumbRight {
+  transform: translate3d(100%, 0, 0);
+}

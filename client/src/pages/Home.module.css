@@ -1,10 +1,10 @@
 /*
- * Home screen. Two regions: a top-of-screen masthead that states what the
- * product is, and an action column where the player picks how to play.
+ * Home screen. Two regions: a masthead stating what the product is, and
+ * an action column where the player picks how to play.
  *
- * Mobile-first: single column, the action column sticks to the bottom of
- * the viewport so it is thumb-reachable. At >=720px everything widens and
- * relaxes into an editorial two-column layout with generous whitespace.
+ * Mobile-first: single column, action card is bottom-stuck for thumb
+ * reach. At >=860px it becomes a two-column editorial layout with the
+ * card sticky so the brand copy can breathe.
  */
 
 .screen {
@@ -18,8 +18,8 @@
 .masthead {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  max-width: 42ch;
+  gap: var(--space-4);
+  max-width: 44ch;
 }
 
 .eyebrow {
@@ -54,11 +54,35 @@
   color: var(--color-ink-muted);
   font-size: var(--font-size-md);
   max-width: 44ch;
+  line-height: var(--line-normal);
 }
 
-/* Placeholder action card — this is replaced by the real RPC-driven
- * flow in a later commit. Keeping the DOM stable avoids layout thrash
- * when we swap the implementation. */
+.mastheadMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono);
+  margin-top: var(--space-2);
+}
+
+.mastheadMetaEdit {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-sunken);
+  color: var(--color-ink-muted);
+  font-family: var(--font-body);
+  font-weight: 500;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.mastheadMetaEdit:hover {
+  background: var(--color-bg-raised);
+  color: var(--color-ink);
+}
+
+/* ---- Action card --------------------------------------------------- */
 
 .card {
   background: var(--color-bg-raised);
@@ -67,52 +91,114 @@
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  box-shadow: var(--shadow-sm);
+  gap: var(--space-5);
+  box-shadow: var(--shadow-md);
+}
+
+.cardHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 .cardTitle {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   font-weight: 600;
+  letter-spacing: var(--letter-tight);
 }
 
-.cardBody {
+.cardLead {
   color: var(--color-ink-muted);
   line-height: var(--line-normal);
+  font-size: var(--font-size-sm);
 }
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-ink-subtle);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.joinRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.joinRow > :first-child {
+  flex: 1;
+}
+
+.cardError {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+}
+
+/* ---- Name editor popover ------------------------------------------- */
+
+.nameForm {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-top: var(--space-2);
+}
+
+.nameForm > :first-child {
+  flex: 1;
+}
+
+/* ---- Footer -------------------------------------------------------- */
 
 .footer {
   margin-top: auto;
   color: var(--color-ink-subtle);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-4);
+  font-family: var(--font-mono);
 }
 
 .statusDot {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  color: var(--color-ink-muted);
 }
 
 .statusDotMark {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-ink-subtle);
-}
-
-.statusDotMark[data-state="ready"] {
   background: var(--color-success);
+  animation: breathe 2400ms var(--ease-out) infinite;
 }
 
-@media (min-width: 720px) {
+@keyframes breathe {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ---- Responsive ---------------------------------------------------- */
+
+@media (min-width: 860px) {
   .screen {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);

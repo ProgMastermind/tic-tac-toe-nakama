@@ -1,10 +1,85 @@
+import { useCallback, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { Button } from "@/components/ui/Button";
+import { ModeToggle } from "@/components/ui/ModeToggle";
+import { TextInput } from "@/components/ui/TextInput";
+import { useNakama } from "@/context/NakamaProvider";
+import type {
+  CreatePrivateMatchRequest,
+  CreatePrivateMatchResponse,
+  GameMode,
+  JoinPrivateMatchRequest,
+  JoinPrivateMatchResponse,
+} from "@/types/match";
+
 import styles from "./Home.module.css";
 
-// Placeholder home screen so the scaffold renders something deliberate
-// while the Nakama client and RPC flows are wired in follow-up commits.
-// The layout and copy land NOW because they drive the visual language
-// the rest of the UI will inherit.
+/**
+ * Home is the lobby. Two calls available:
+ *
+ *   1. Create a private room → navigate to /game/:matchId with the code
+ *      visible so the user can share it with a friend.
+ *   2. Join with a 4-character code → navigate to /game/:matchId.
+ *
+ * Public matchmaking lands in M2 under its own "Find a match" affordance
+ * but is not wired up from this screen yet.
+ */
 export default function Home() {
+  const { client, session, displayName, setDisplayName } = useNakama();
+  const navigate = useNavigate();
+
+  const [mode, setMode] = useState<GameMode>("classic");
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [lobbyError, setLobbyError] = useState<string | null>(null);
+
+  // ---- Create private room ------------------------------------------
+  const handleCreate = useCallback(async () => {
+    if (!session) return;
+    setLobbyError(null);
+    setCreating(true);
+    try {
+      const req: CreatePrivateMatchRequest = { mode };
+      const response = await client.rpc(session, "create_private_match", req);
+      const parsed = parseRpc<CreatePrivateMatchResponse>(response.payload);
+      navigate(`/game/${parsed.matchId}?code=${parsed.code}`);
+    } catch (err) {
+      setLobbyError(await formatRpcError(err, "Couldn't open a new room."));
+    } finally {
+      setCreating(false);
+    }
+  }, [client, session, mode, navigate]);
+
+  // ---- Join with code ------------------------------------------------
+  const handleJoin = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      if (!session) return;
+      setLobbyError(null);
+      setCodeError(null);
+      const trimmed = code.trim().toUpperCase();
+      if (trimmed.length !== 4) {
+        setCodeError("Room codes are 4 characters.");
+        return;
+      }
+      setJoining(true);
+      try {
+        const req: JoinPrivateMatchRequest = { code: trimmed };
+        const response = await client.rpc(session, "join_private_match", req);
+        const parsed = parseRpc<JoinPrivateMatchResponse>(response.payload);
+        navigate(`/game/${parsed.matchId}`);
+      } catch (err) {
+        setCodeError(await formatRpcError(err, "No open room with that code."));
+      } finally {
+        setJoining(false);
+      }
+    },
+    [client, session, code, navigate],
+  );
+
   return (
     <main className={`app-shell ${styles.screen}`}>
       <header className={styles.masthead}>
@@ -18,28 +93,195 @@ export default function Home() {
           <span className={styles.titleItalic}>played properly.</span>
         </h1>
         <p className={styles.subtitle}>
-          A two-player board game where every move is validated on the
-          server. No turns stolen, no cells overwritten, no races won by
-          tab-mashing. Just a well-kept ruleset and a friend.
+          A two-player board built on a server-authoritative backend. Every
+          move is validated on Nakama before the board updates — no turns
+          stolen, no cells overwritten, no ghosts on the wire.
         </p>
+        <DisplayNameStrip
+          displayName={displayName}
+          onSave={setDisplayName}
+        />
       </header>
 
       <section className={styles.card} aria-label="Start playing">
-        <h2 className={styles.cardTitle}>Ready when you are</h2>
-        <p className={styles.cardBody}>
-          The match flow lands in the next step — pick a mode, create a
-          private room, or drop a friend&rsquo;s code. This card will grow
-          into the lobby.
-        </p>
+        <div className={styles.cardHead}>
+          <h2 className={styles.cardTitle}>Start a game</h2>
+          <p className={styles.cardLead}>
+            Pick a mode and open a private room — share the code with a
+            friend, or drop someone else&rsquo;s code in to join theirs.
+          </p>
+        </div>
+
+        <ModeToggle value={mode} onChange={setMode} disabled={creating || joining} />
+
+        <Button
+          size="lg"
+          block
+          onClick={handleCreate}
+          loading={creating}
+          disabled={!session || joining}
+        >
+          Create a private room
+        </Button>
+
+        {lobbyError ? (
+          <p role="alert" className={styles.cardError}>
+            {lobbyError}
+          </p>
+        ) : null}
+
+        <div className={styles.divider}>or</div>
+
+        <form onSubmit={handleJoin} noValidate>
+          <div className={styles.joinRow}>
+            <TextInput
+              mono
+              label="Join with a code"
+              placeholder="ABCD"
+              maxLength={4}
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setCodeError(null);
+              }}
+              error={codeError}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+            />
+            <Button
+              variant="secondary"
+              size="lg"
+              type="submit"
+              loading={joining}
+              disabled={!session || creating || code.trim().length !== 4}
+            >
+              Join
+            </Button>
+          </div>
+        </form>
       </section>
 
       <footer className={styles.footer}>
         <span>© Tic Tac Toe · Nakama authoritative backend</span>
         <span className={styles.statusDot}>
-          <span className={styles.statusDotMark} data-state="pending" />
-          client idle
+          <span className={styles.statusDotMark} aria-hidden />
+          connected
         </span>
       </footer>
     </main>
   );
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Inline display-name editor. Collapsed into a tag showing the current
+ * name; clicking opens a small form. Kept out of a modal because a modal
+ * here would feel disproportionate for one field.
+ */
+function DisplayNameStrip({
+  displayName,
+  onSave,
+}: {
+  displayName: string;
+  onSave(name: string): Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(displayName);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await onSave(value);
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className={styles.mastheadMeta}>
+        <span>playing as</span>
+        <button
+          type="button"
+          className={styles.mastheadMetaEdit}
+          onClick={() => {
+            setValue(displayName);
+            setEditing(true);
+          }}
+        >
+          {displayName || "Set a name"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className={styles.nameForm}>
+      <TextInput
+        label="Display name"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        maxLength={24}
+        autoFocus
+        error={error}
+      />
+      <Button type="submit" size="md" loading={saving}>
+        Save
+      </Button>
+      <Button
+        type="button"
+        size="md"
+        variant="ghost"
+        onClick={() => {
+          setValue(displayName);
+          setError(null);
+          setEditing(false);
+        }}
+      >
+        Cancel
+      </Button>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* RPC helpers                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * client.rpc returns payload typed as `object | undefined` on success —
+ * but server-side our handlers return a JSON *string*, which nakama-js
+ * forwards verbatim. Handle both shapes so we're resilient to a future
+ * SDK behaviour change.
+ */
+function parseRpc<T>(payload: object | string | undefined): T {
+  if (payload == null) throw new Error("empty response");
+  if (typeof payload === "string") return JSON.parse(payload) as T;
+  return payload as T;
+}
+
+/**
+ * Nakama errors bubble through .json() on the HTTP client. Fall back to
+ * the default message if we can't extract a server-side message.
+ */
+async function formatRpcError(err: unknown, fallback: string): Promise<string> {
+  if (err && typeof err === "object" && "json" in err) {
+    try {
+      const body = (await (err as { json: () => Promise<{ message?: string }> }).json()) ?? {};
+      if (body?.message) return body.message;
+    } catch {
+      // fall through
+    }
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 }
