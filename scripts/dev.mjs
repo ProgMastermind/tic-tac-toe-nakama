@@ -71,7 +71,6 @@ if (runSync("node", ["scripts/wait-for-nakama.mjs"]) !== 0) {
     "nakama",
   ]);
   await cleanup(1);
-  return;
 }
 
 // ---- Step 4: vite in the foreground ------------------------------------
