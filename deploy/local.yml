@@ -1,0 +1,58 @@
+# -----------------------------------------------------------------------------
+# Nakama runtime configuration for LOCAL development.
+#
+# This file is safe to commit because every secret it contains is a
+# placeholder that only works against the local docker-compose stack.
+# Any deployed environment MUST override these values via deploy/prod.yml
+# and a secrets source (environment variables or a secret store).
+# -----------------------------------------------------------------------------
+
+name: nakama-tictactoe-local
+data_dir: "./data"
+
+logger:
+  level: "INFO"
+  stdout: true
+
+# HTTP key gates server-to-server RPC calls made without a session. Matches
+# the VITE_NAKAMA_KEY the client is configured with. Rotate in prod.yml.
+runtime:
+  http_key: "defaultkey"
+
+session:
+  # 7-day access tokens with 30-day refresh tokens keeps the browser
+  # client from having to re-authenticate across typical testing sessions.
+  token_expiry_sec: 604800
+  refresh_token_expiry_sec: 2592000
+  # Local HMAC secrets. Overridden in prod.yml with values injected from
+  # the deployment environment — NEVER reuse these in any exposed server.
+  encryption_key: "defaultencryptionkey"
+  refresh_encryption_key: "defaultrefreshencryptionkey"
+
+socket:
+  server_key: "defaultkey"
+  # Long idle timeout — a tic-tac-toe match with a thinking player can sit
+  # idle for most of a turn's 30-second window without us wanting to drop it.
+  idle_timeout_ms: 60000
+  write_wait_ms: 5000
+  pong_wait_ms: 25000
+
+# Authoritative match settings. call_timeout_ms is the maximum time a single
+# tick or callback may take before Nakama forcibly cancels it; keep it well
+# above realistic handler work (our ticks do O(1) work).
+match:
+  input_queue_size: 128
+  call_queue_size: 128
+  join_attempt_queue_size: 128
+  deferred_queue_size: 128
+  join_marker_deadline_ms: 15000
+  max_empty_sec: 30
+  label_update_interval_ms: 1000
+  call_timeout_ms: 500
+
+# Console is exposed only on the Docker network; docker-compose binds port
+# 7351 to 127.0.0.1, so it is not reachable from outside the host in dev.
+console:
+  port: 7351
+  username: "admin"
+  password: "localdev"
