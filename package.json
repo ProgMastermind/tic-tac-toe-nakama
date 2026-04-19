@@ -1,0 +1,26 @@
+{
+  "name": "tic-tac-toe-nakama",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Monorepo scripts for the tic-tac-toe Nakama project — orchestrates the Go server, Docker stack, and React client from one place.",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "test:server": "node scripts/test-server.mjs",
+    "test:client": "npm --prefix client run typecheck && npm --prefix client run build",
+    "test": "npm run test:server && npm run test:client",
+    "server:up": "docker compose -f deploy/docker-compose.yml up --build -d",
+    "server:logs": "docker compose -f deploy/docker-compose.yml logs -f nakama",
+    "server:down": "docker compose -f deploy/docker-compose.yml down",
+    "server:wait": "node scripts/wait-for-nakama.mjs",
+    "client:install": "npm --prefix client install",
+    "client:dev": "npm --prefix client run dev",
+    "dev": "node scripts/dev.mjs",
+    "verify": "npm run setup && npm run test && echo \"\\nAll checks passed. Run `npm run dev` to boot the full stack.\""
+  },
+  "devDependencies": {
+    "concurrently": "9.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
