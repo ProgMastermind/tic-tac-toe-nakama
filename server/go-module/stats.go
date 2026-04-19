@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 
@@ -209,4 +210,41 @@ func writeMatchStats(
 				s.MatchID, s.Winner, err)
 		}
 	}
+}
+
+// -----------------------------------------------------------------------------
+// get_stats RPC.
+// -----------------------------------------------------------------------------
+
+// RpcGetStats returns the caller's stats summary. A first-time caller gets
+// a zero-valued StatsSummary rather than a 404 — the home page renders a
+// strip unconditionally and a zero row reads cleanly as "no games yet".
+//
+// Read is authenticated via the user id on the RPC context. Even though
+// the underlying row is world-readable, this RPC is intentionally limited
+// to self-reads; profile-style reads of other users' stats go through the
+// leaderboard page, which reads the public rows directly.
+func RpcGetStats(
+	ctx context.Context,
+	logger runtime.Logger,
+	db *sql.DB,
+	nk runtime.NakamaModule,
+	payload string,
+) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", runtime.NewError("unauthenticated", 16)
+	}
+
+	summary, err := readStats(ctx, nk, userID)
+	if err != nil {
+		logger.Error("get_stats: read user=%s err=%v", userID, err)
+		return "", runtime.NewError("could not read stats", 13)
+	}
+
+	out, err := json.Marshal(summary)
+	if err != nil {
+		return "", runtime.NewError("response marshal: "+err.Error(), 13)
+	}
+	return string(out), nil
 }

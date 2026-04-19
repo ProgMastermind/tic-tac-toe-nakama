@@ -50,6 +50,9 @@ func InitModule(
 	if err := initializer.RegisterRpc("get_current_match", RpcGetCurrentMatch); err != nil {
 		return fmt.Errorf("register rpc get_current_match: %w", err)
 	}
+	if err := initializer.RegisterRpc("get_stats", RpcGetStats); err != nil {
+		return fmt.Errorf("register rpc get_stats: %w", err)
+	}
 
 	if err := initializer.RegisterMatchmakerMatched(matchmakerMatched); err != nil {
 		return fmt.Errorf("register matchmaker_matched: %w", err)
