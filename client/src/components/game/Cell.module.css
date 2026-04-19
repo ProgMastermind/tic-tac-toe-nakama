@@ -1,0 +1,109 @@
+/*
+ * A single board cell. Hover darkens the surface subtly, active scales
+ * down for haptic-style feedback, and disabled simply dims the hover.
+ * The mark itself is an SVG whose stroke is drawn on via CSS keyframes
+ * — no Framer Motion dependency here, because the animation is fire-
+ * and-forget and never needs to be interrupted or reversed.
+ */
+
+.cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+  box-shadow: var(--shadow-sm);
+}
+
+.cell:not(:disabled):hover {
+  background: color-mix(in oklab, var(--color-accent) 4%, var(--color-bg-raised));
+  border-color: var(--color-border-strong);
+}
+
+.cell:not(:disabled):active {
+  transform: scale(0.96);
+  box-shadow: none;
+}
+
+.cellDisabled {
+  cursor: default;
+}
+
+.cellWinning {
+  background: color-mix(in oklab, var(--color-accent) 10%, var(--color-bg-raised));
+  border-color: var(--color-accent);
+  animation: winFlash 900ms var(--ease-out) 1;
+}
+
+.mark {
+  width: 60%;
+  height: 60%;
+  overflow: visible;
+  color: var(--color-ink);
+}
+
+.markX {
+  color: var(--color-player-x);
+}
+
+.markO {
+  color: var(--color-player-o);
+}
+
+.markStroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 220;
+  stroke-dashoffset: 220;
+  animation: drawMark 360ms var(--ease-out) forwards;
+}
+
+.markStroke:nth-child(2) {
+  animation-delay: 220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markStroke {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes drawMark {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes winFlash {
+  0% {
+    background: color-mix(in oklab, var(--color-accent) 25%, var(--color-bg-raised));
+  }
+  100% {
+    background: color-mix(in oklab, var(--color-accent) 10%, var(--color-bg-raised));
+  }
+}
+
+/*
+ * Faint pre-move hint: on the player's turn, empty cells glow very
+ * softly on hover to guide the eye without shouting.
+ */
+.cellInteractive:hover::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: calc(var(--radius-md) + 4px);
+  border: 1px solid var(--color-accent-soft);
+  pointer-events: none;
+}

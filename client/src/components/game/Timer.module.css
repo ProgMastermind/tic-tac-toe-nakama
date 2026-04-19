@@ -1,0 +1,54 @@
+.timer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-raised);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-ink);
+  transition: border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out);
+}
+
+.timerDanger {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  animation: beat 1s var(--ease-out) infinite;
+}
+
+.bar {
+  position: relative;
+  width: 64px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-sunken);
+  overflow: hidden;
+}
+
+.barFill {
+  position: absolute;
+  inset: 0;
+  background: var(--color-ink);
+  transform-origin: left center;
+  transition: transform 200ms linear, background var(--dur-base) var(--ease-out);
+}
+
+.timerDanger .barFill {
+  background: var(--color-accent);
+}
+
+@keyframes beat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}

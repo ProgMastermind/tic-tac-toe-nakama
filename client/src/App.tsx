@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 
 import { Connecting, ConnectionError } from "@/components/AppStatus";
 import { NakamaProvider, useNakama } from "@/context/NakamaProvider";
+import Game from "@/pages/Game";
 import Home from "@/pages/Home";
 
 // The app tree:
@@ -17,6 +18,7 @@ export default function App() {
       <StatusGate>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/game/:matchId" element={<Game />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </StatusGate>
