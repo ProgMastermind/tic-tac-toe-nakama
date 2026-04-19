@@ -7,7 +7,7 @@
 # and a secrets source (environment variables or a secret store).
 # -----------------------------------------------------------------------------
 
-name: nakama-tictactoe-local
+name: ttt-local
 data_dir: "./data"
 
 logger:
