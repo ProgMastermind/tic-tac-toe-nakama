@@ -109,3 +109,33 @@ export interface GetCurrentMatchResponse {
   mark?: Mark;
   mode?: GameMode;
 }
+
+// ---- Stats + leaderboard ----------------------------------------------------
+
+/**
+ * Per-user match summary written by the server on every finished match.
+ * Mirrors the Go StatsSummary. A first-time player reads a zero-valued
+ * row rather than a 404, so the client never branches on existence.
+ */
+export interface StatsSummary {
+  wins: number;
+  losses: number;
+  draws: number;
+  currentStreak: number;
+  bestStreak: number;
+  classicWins: number;
+  timedWins: number;
+}
+
+/**
+ * One row of the top-10 leaderboard view, combining the authoritative
+ * leaderboard record with the public stats row for the owner. Streak and
+ * per-mode splits come from stats; rank and score come from the record.
+ */
+export interface LeaderboardEntry {
+  ownerId: string;
+  username: string;
+  rank: number;
+  wins: number;
+  stats: StatsSummary | null;
+}

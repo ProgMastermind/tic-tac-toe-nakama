@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { ModeToggle } from "@/components/ui/ModeToggle";
 import { TextInput } from "@/components/ui/TextInput";
 import { useNakama } from "@/context/NakamaProvider";
+import { useStats } from "@/hooks/useStats";
 import type {
   CreatePrivateMatchRequest,
   CreatePrivateMatchResponse,
   GameMode,
   JoinPrivateMatchRequest,
   JoinPrivateMatchResponse,
+  StatsSummary,
 } from "@/types/match";
 
 import styles from "./Home.module.css";
@@ -34,6 +36,7 @@ export default function Home() {
     setDisplayName,
     registerMatchmakerMatchedHandler,
   } = useNakama();
+  const { stats } = useStats();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<GameMode>("classic");
@@ -203,6 +206,7 @@ export default function Home() {
           displayName={displayName}
           onSave={setDisplayName}
         />
+        <StatsStrip stats={stats} />
       </header>
 
       <section className={styles.card} aria-label="Start playing">
@@ -304,6 +308,9 @@ export default function Home() {
 
       <footer className={styles.footer}>
         <span>© Tic Tac Toe · Nakama authoritative backend</span>
+        <Link to="/leaderboard" className={styles.footerLink}>
+          Leaderboard →
+        </Link>
         <span className={styles.statusDot}>
           <span className={styles.statusDotMark} aria-hidden />
           connected
@@ -390,6 +397,41 @@ function DisplayNameStrip({
         Cancel
       </Button>
     </form>
+  );
+}
+
+/**
+ * StatsStrip surfaces the signed-in user's match record right below the
+ * display-name tag. A first-time player sees zeros — that's intentional,
+ * it reads as an invitation rather than a gate.
+ *
+ * Streak is highlighted only when it's actually alive (>0) so the strip
+ * doesn't misrepresent a cold start as a fresh streak.
+ */
+function StatsStrip({ stats }: { stats: StatsSummary }) {
+  const items: Array<{ label: string; value: string; emphasized?: boolean }> = [
+    { label: "Wins", value: String(stats.wins) },
+    { label: "Losses", value: String(stats.losses) },
+    { label: "Draws", value: String(stats.draws) },
+    {
+      label: "Streak",
+      value: String(stats.currentStreak),
+      emphasized: stats.currentStreak > 0,
+    },
+    { label: "Best", value: String(stats.bestStreak) },
+  ];
+  return (
+    <dl className={styles.stats} aria-label="Your record">
+      {items.map((it) => (
+        <div
+          key={it.label}
+          className={`${styles.statItem} ${it.emphasized ? styles.statItemEmph : ""}`}
+        >
+          <dt className={styles.statLabel}>{it.label}</dt>
+          <dd className={styles.statValue}>{it.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

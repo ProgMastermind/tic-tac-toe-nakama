@@ -1,0 +1,223 @@
+/*
+ * Leaderboard screen. Single column — a table of the top 10. Keeping it
+ * in the same editorial vocabulary as Home: warm paper, hairline borders,
+ * Fraunces on the display type, JetBrains Mono on the numerics so ranks
+ * and counts line up vertically without tabular-nums hacks.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding-block: var(--space-6) var(--space-8);
+  flex: 1;
+}
+
+.masthead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 56ch;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-muted);
+}
+
+.eyebrowDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: 500;
+  letter-spacing: var(--letter-tight);
+  line-height: var(--line-tight);
+}
+
+.subtitle {
+  color: var(--color-ink-muted);
+  line-height: var(--line-normal);
+  max-width: 52ch;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.backLink {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-sm);
+  letter-spacing: var(--letter-wide);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.backLink:hover {
+  color: var(--color-ink);
+}
+
+/* ---- Card + table -------------------------------------------------- */
+
+.card {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+  overflow-x: auto;
+}
+
+.stateMessage {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-sm);
+  padding: var(--space-5) var(--space-2);
+  text-align: center;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table thead tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table th {
+  text-align: left;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+  padding: var(--space-2) var(--space-3);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-ink);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: var(--color-bg-sunken);
+}
+
+.rank {
+  font-family: var(--font-mono);
+  color: var(--color-ink-subtle);
+  width: 3ch;
+}
+
+.rankCol {
+  width: 3ch;
+}
+
+.player {
+  min-width: 0;
+}
+
+.playerName {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 28ch;
+  vertical-align: middle;
+}
+
+.num,
+.numBold {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.numCol {
+  text-align: right;
+  width: 9ch;
+}
+
+.numBold {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.split {
+  font-family: var(--font-mono);
+  color: var(--color-ink-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.splitCol {
+  text-align: right;
+  width: 14ch;
+}
+
+/* ---- Empty state --------------------------------------------------- */
+
+.empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.emptyEyebrow {
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-size: var(--font-size-xl);
+  font-weight: 500;
+  letter-spacing: var(--letter-tight);
+}
+
+.emptyLead {
+  color: var(--color-ink-muted);
+  max-width: 40ch;
+}
+
+.emptyLink {
+  color: var(--color-accent);
+  font-weight: 500;
+  margin-top: var(--space-2);
+}
+
+.emptyLink:hover {
+  color: var(--color-accent-strong);
+}
+
+@media (max-width: 640px) {
+  /* The classic/timed split is the most droppable column on narrow screens. */
+  .split,
+  .splitCol {
+    display: none;
+  }
+}

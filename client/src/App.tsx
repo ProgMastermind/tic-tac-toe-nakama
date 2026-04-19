@@ -5,6 +5,7 @@ import { Connecting, ConnectionError } from "@/components/AppStatus";
 import { NakamaProvider, useNakama } from "@/context/NakamaProvider";
 import Game from "@/pages/Game";
 import Home from "@/pages/Home";
+import Leaderboard from "@/pages/Leaderboard";
 
 import styles from "./App.module.css";
 
@@ -25,6 +26,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/game/:matchId" element={<Game />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="*" element={<Home />} />
           </Routes>
         </RehydrateGate>
