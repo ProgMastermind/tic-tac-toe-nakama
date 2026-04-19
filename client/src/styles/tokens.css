@@ -1,0 +1,158 @@
+/*
+ * Design tokens. Every visual decision that could otherwise grow organic
+ * variants lives here as a named CSS custom property. Components should
+ * compose these tokens and never hard-code colour / spacing / radii.
+ *
+ * Palette is editorial minimal — warm off-white paper, near-black ink, one
+ * confident red accent. No purple-to-pink gradients.
+ */
+
+:root {
+  /* ---------- Colour: light theme (default) ----------------------- */
+  --color-bg: #faf8f3; /* warm paper */
+  --color-bg-raised: #ffffff; /* card surfaces */
+  --color-bg-sunken: #f1ede5; /* grooves, inset wells */
+
+  --color-ink: #11110f; /* primary text, X mark */
+  --color-ink-muted: #55524c; /* secondary text */
+  --color-ink-subtle: #8a8579; /* tertiary text, hints */
+  --color-ink-disabled: #c2bdb0;
+
+  --color-border: #e6e1d4; /* hair-line dividers */
+  --color-border-strong: #cec8b8;
+
+  --color-accent: #b2342c; /* editorial red — used sparingly */
+  --color-accent-strong: #8d2720;
+  --color-accent-soft: #f7e5e2;
+
+  --color-success: #26734b;
+  --color-success-soft: #e3f2e9;
+
+  --color-warning: #9c7916;
+  --color-warning-soft: #f7efd9;
+
+  --color-player-x: var(--color-ink);
+  --color-player-o: var(--color-accent);
+
+  --color-focus-ring: color-mix(in oklab, var(--color-accent) 40%, transparent);
+  --color-overlay: color-mix(in oklab, var(--color-ink) 55%, transparent);
+
+  /* ---------- Typography ----------------------------------------- */
+  --font-display: "Fraunces", "Iowan Old Style", "Charter", "Georgia", serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-md: 1.125rem;
+  --font-size-lg: 1.375rem;
+  --font-size-xl: 1.75rem;
+  --font-size-2xl: 2.5rem;
+  --font-size-display: clamp(2.75rem, 8vw, 4.75rem);
+
+  --line-tight: 1.1;
+  --line-snug: 1.25;
+  --line-normal: 1.5;
+  --line-loose: 1.7;
+
+  --letter-tight: -0.02em;
+  --letter-normal: 0;
+  --letter-wide: 0.02em;
+  --letter-eyebrow: 0.14em;
+
+  /* ---------- Spacing --------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  /* ---------- Radii ---------------------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+
+  /* ---------- Shadows. Layered rather than big-blur ------------- */
+  --shadow-sm: 0 1px 1px rgba(17, 17, 15, 0.04),
+               0 1px 2px rgba(17, 17, 15, 0.04);
+  --shadow-md: 0 1px 2px rgba(17, 17, 15, 0.05),
+               0 4px 10px rgba(17, 17, 15, 0.06);
+  --shadow-lg: 0 2px 4px rgba(17, 17, 15, 0.06),
+               0 14px 28px rgba(17, 17, 15, 0.10);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6),
+                  inset 0 -1px 0 rgba(17, 17, 15, 0.04);
+
+  /* ---------- Motion. Shared curves + durations ----------------- */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.6, 0, 0.2, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+
+  /* ---------- Layout --------------------------------------------- */
+  --container-narrow: 34rem;
+  --container-base: 56rem;
+  --content-gutter: clamp(var(--space-4), 4vw, var(--space-7));
+}
+
+/*
+ * Dark theme is opt-in via `data-theme="dark"` on <html> OR the user's
+ * OS preference. Same token names, different values — components do not
+ * branch on the theme.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #0e0e0d;
+    --color-bg-raised: #17171a;
+    --color-bg-sunken: #0a0a0a;
+
+    --color-ink: #f4f1ea;
+    --color-ink-muted: #a5a197;
+    --color-ink-subtle: #6c685d;
+    --color-ink-disabled: #3d3b35;
+
+    --color-border: #262522;
+    --color-border-strong: #3a3834;
+
+    --color-accent: #e85b4f;
+    --color-accent-strong: #c7433a;
+    --color-accent-soft: rgba(232, 91, 79, 0.14);
+
+    --color-success: #4fb378;
+    --color-success-soft: rgba(79, 179, 120, 0.14);
+
+    --color-warning: #d8b250;
+    --color-warning-soft: rgba(216, 178, 80, 0.14);
+
+    --color-player-x: var(--color-ink);
+    --color-player-o: var(--color-accent);
+
+    --color-overlay: color-mix(in oklab, #000 70%, transparent);
+    --color-focus-ring: color-mix(in oklab, var(--color-accent) 45%, transparent);
+
+    --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 26px rgba(0, 0, 0, 0.6);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.03),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+  }
+}
+
+/*
+ * Respect reduced-motion. Components still animate, but faster and
+ * without springy overshoot.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}

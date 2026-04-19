@@ -1,0 +1,138 @@
+/*
+ * Home screen. Two regions: a top-of-screen masthead that states what the
+ * product is, and an action column where the player picks how to play.
+ *
+ * Mobile-first: single column, the action column sticks to the bottom of
+ * the viewport so it is thumb-reachable. At >=720px everything widens and
+ * relaxes into an editorial two-column layout with generous whitespace.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding-block: var(--space-6) var(--space-8);
+  flex: 1;
+}
+
+.masthead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 42ch;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-muted);
+}
+
+.eyebrowDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.title {
+  font-size: var(--font-size-display);
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: var(--letter-tight);
+  line-height: var(--line-tight);
+}
+
+.titleItalic {
+  font-style: italic;
+  color: var(--color-accent);
+}
+
+.subtitle {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-md);
+  max-width: 44ch;
+}
+
+/* Placeholder action card — this is replaced by the real RPC-driven
+ * flow in a later commit. Keeping the DOM stable avoids layout thrash
+ * when we swap the implementation. */
+
+.card {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.cardBody {
+  color: var(--color-ink-muted);
+  line-height: var(--line-normal);
+}
+
+.footer {
+  margin-top: auto;
+  color: var(--color-ink-subtle);
+  font-size: var(--font-size-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.statusDot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-muted);
+}
+
+.statusDotMark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-ink-subtle);
+}
+
+.statusDotMark[data-state="ready"] {
+  background: var(--color-success);
+}
+
+@media (min-width: 720px) {
+  .screen {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+    gap: var(--space-8);
+    align-items: start;
+  }
+  .masthead {
+    grid-column: 1;
+    grid-row: 1;
+    padding-top: var(--space-6);
+  }
+  .card {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: var(--space-6);
+  }
+  .footer {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

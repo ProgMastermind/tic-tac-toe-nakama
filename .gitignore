@@ -1,7 +1,9 @@
 # Node / Vite
 node_modules/
 dist/
+dist-tsc/
 .vite/
+*.tsbuildinfo
 *.local
 
 # Env files

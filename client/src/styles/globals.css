@@ -1,0 +1,160 @@
+@import "./tokens.css";
+
+/* ------------------------------------------------------------------
+ * Reset. Terse and intentional — we only reset things we actually
+ * disagree with, instead of pulling in a full normalize sheet.
+ * ------------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: var(--line-normal);
+  color: var(--color-ink);
+  background:
+    radial-gradient(
+      ellipse 80% 60% at 50% -10%,
+      color-mix(in oklab, var(--color-accent) 4%, transparent),
+      transparent 60%
+    ),
+    var(--color-bg);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Selection colour mirrors the accent so copy-pasting a code on the home
+ * page looks considered, not accidental. */
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  color: var(--color-ink);
+  letter-spacing: var(--letter-tight);
+  line-height: var(--line-tight);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+a:hover {
+  color: var(--color-accent-strong);
+}
+
+/* ------------------------------------------------------------------
+ * Application shell. A minimal layout wrapper used by every route so
+ * page code can focus on content rather than centring math.
+ * ------------------------------------------------------------------ */
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--content-gutter);
+  max-width: var(--container-base);
+  width: 100%;
+  margin: 0 auto;
+  gap: var(--space-6);
+}
+
+/* ------------------------------------------------------------------
+ * Utility patterns used in more than one place. Keep this tiny — most
+ * styling lives with the component, not here.
+ * ------------------------------------------------------------------ */
+
+.eyebrow {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-size: var(--font-size-display);
+  line-height: var(--line-tight);
+  letter-spacing: var(--letter-tight);
+  font-weight: 500;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
