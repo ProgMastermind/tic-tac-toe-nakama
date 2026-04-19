@@ -395,11 +395,12 @@ func (m *Match) MatchLoop(
 	// (5 & 6) Broadcast state + end event.
 	if changed {
 		broadcastState(logger, dispatcher, s, nowMs)
-		if s.Status == StatusFinished {
+		if s.Status == StatusFinished && !s.StatsWritten {
 			broadcastEnded(logger, dispatcher, s)
-			// Stats writes land here in a later milestone. We still set
-			// the guard so MatchTerminate doesn't double-write once that
-			// code arrives.
+			// Stats and leaderboard writes run synchronously on the loop
+			// goroutine so a user seeing the end overlay can already be
+			// reflected on the leaderboard by the time they get there.
+			writeMatchStats(ctx, logger, nk, s)
 			s.StatsWritten = true
 		}
 	}
@@ -454,7 +455,15 @@ func (m *Match) MatchTerminate(
 		}
 	}
 
-	// Stats writes plug into here (safety net) when that subsystem lands.
+	// Safety net for match-end stats writes. MatchLoop is the primary
+	// writer because users expect their counts to update before the
+	// overlay finishes fading; MatchTerminate covers the narrow window
+	// where the server tore the match down before MatchLoop's finish
+	// branch ran (panic, forced shutdown, etc.).
+	if !s.StatsWritten && s.Status == StatusFinished {
+		writeMatchStats(ctx, logger, nk, s)
+		s.StatsWritten = true
+	}
 	return s
 }
 
