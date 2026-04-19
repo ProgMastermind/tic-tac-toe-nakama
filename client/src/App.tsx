@@ -68,12 +68,23 @@ function RehydrateGate({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const locationRef = useRef(location.pathname);
+  // Boot-time one-shot. Once the user has been put in front of a route
+  // this session, we never auto-navigate again — otherwise clicking
+  // "Back to lobby" right after a match ends can race the server's
+  // active_match clear and bounce the user straight back into the
+  // finished game. Reconnects don't need this redirect either: if the
+  // user was on /game/:id when the socket dropped, they're still on
+  // that route after reconnect, and useMatch re-joins naturally.
+  const didBootCheckRef = useRef(false);
   useEffect(() => {
     locationRef.current = location.pathname;
   }, [location.pathname]);
 
   useEffect(() => {
+    if (didBootCheckRef.current) return;
     if (status !== "ready" || reconnectGeneration === 0) return;
+    didBootCheckRef.current = true;
+
     let cancelled = false;
     (async () => {
       try {

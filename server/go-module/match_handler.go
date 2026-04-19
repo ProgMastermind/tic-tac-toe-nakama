@@ -274,11 +274,25 @@ func (m *Match) MatchLeave(
 		delete(s.Presences, userID)
 		// Only arm the grace clock for players that are actually in the
 		// match — this avoids tracking someone whose join we rejected.
-		if _, isPlayer := s.MarkByUserID[userID]; isPlayer && s.Status != StatusFinished {
-			s.DisconnectAtMs[userID] = nowMs
-			logger.Info("match=%s user=%s left, grace=%ds",
-				s.MatchID, userID, DisconnectGraceSeconds)
+		if _, isPlayer := s.MarkByUserID[userID]; !isPlayer {
+			continue
 		}
+		if s.Status == StatusFinished {
+			// Match is already over. Drop the rehydrate pointer now so
+			// this user cannot be auto-redirected back into a match they
+			// have just seen to completion. MatchTerminate still clears
+			// as a safety net, but the 30-tick grace window is too long
+			// to rely on — a client that lands on "/" in the meantime
+			// would otherwise bounce straight back into the end overlay.
+			if err := clearActiveMatch(ctx, nk, userID); err != nil {
+				logger.Warn("match=%s active_match clear on leave user=%s err=%v",
+					s.MatchID, userID, err)
+			}
+			continue
+		}
+		s.DisconnectAtMs[userID] = nowMs
+		logger.Info("match=%s user=%s left, grace=%ds",
+			s.MatchID, userID, DisconnectGraceSeconds)
 	}
 	return s
 }
