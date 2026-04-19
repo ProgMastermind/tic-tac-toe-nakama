@@ -7,7 +7,7 @@ updated to match.
 
 **Repo**: https://github.com/ProgMastermind/tic-tac-toe-nakama
 **Current branch**: `main`
-**HEAD as of this writing**: `603f0b6` (M2 complete, unpushed)
+**HEAD as of this writing**: `bd4cef3` (M3 complete, unpushed)
 
 ---
 
@@ -48,23 +48,32 @@ Network drops trigger a reconnect pill banner (1s → 30s backoff) and
 the socket re-attaches without losing state. Back-to-lobby after a
 match end lands cleanly on `/` without bouncing.
 
-**M3 — leaderboard + stats** 🔜 **NEXT**
-**M4 — production deploy** (DigitalOcean + Vercel)
+**M3 — leaderboard + stats** ✅ **DONE**
+Every finished match writes a per-user storage row (wins / losses /
+draws / current streak / best streak / per-mode wins) and increments
+a global_wins leaderboard for the winner. Home shows a stats strip
+under the display-name tag; `/leaderboard` renders the top 10 with
+rank, wins, live streak, best streak, and classic / timed split.
+Abandoned matches are filtered so never-started rooms don't pollute
+the record.
+
+**M4 — production deploy** 🔜 **NEXT** (DigitalOcean + Vercel)
 
 ---
 
-## 3 · Shipped so far (M1 + M2)
+## 3 · Shipped so far (M1 + M2 + M3)
 
 ### 3.1 Server (Go plugin)
 
 Files in [server/go-module/](server/go-module/):
 
-- [main.go](server/go-module/main.go) — `InitModule` registers the match handler, private-room RPCs, `get_current_match`, and the matchmaker-matched hook. Leaderboard init lands here in M3.
-- [state.go](server/go-module/state.go) — pure types, opcodes, rule helpers. The file M3 will extend when stats need new fields.
-- [match_handler.go](server/go-module/match_handler.go) — the full `runtime.Match` lifecycle. `MatchJoin` writes each player's `active_match` row; `MatchLeave` clears it immediately for finished matches; `MatchTerminate` clears anything left as a safety net.
+- [main.go](server/go-module/main.go) — `InitModule` registers the match handler, private-room RPCs (`create_private_match`, `join_private_match`), the rehydrate RPC (`get_current_match`), the stats RPC (`get_stats`), the matchmaker-matched hook, and creates the `global_wins` leaderboard (idempotent).
+- [state.go](server/go-module/state.go) — pure types, opcodes, rule helpers. `StatsWritten` flag on state guards the match-finish write path against double counting.
+- [match_handler.go](server/go-module/match_handler.go) — the full `runtime.Match` lifecycle. `MatchJoin` writes each player's `active_match` row; `MatchLeave` clears it immediately for finished matches; `MatchLoop` calls `writeMatchStats` on transition to finished; `MatchTerminate` clears rehydrate rows for every known player and runs `writeMatchStats` as a safety net if the loop-side write didn't fire.
 - [rpc.go](server/go-module/rpc.go) — private-room RPCs with crypto-random codes, per-user cooldown, input sanitisation.
 - [matchmaker.go](server/go-module/matchmaker.go) — `matchmakerMatched` hook opens an authoritative match with `expected_users` populated so `MatchJoinAttempt` admits only the paired users.
 - [active_match.go](server/go-module/active_match.go) — storage read/write/clear helpers plus `get_current_match` RPC. Collection `active_match`, key `current`, owner-readable only.
+- [stats.go](server/go-module/stats.go) — `StatsSummary` storage row (collection `stats`, key `summary`, **public-readable** so the leaderboard page can enrich records in one batch), outcome classification (win/loss/draw/skip), `writeMatchStats` orchestrator (read-modify-write per player + winner-only `LeaderboardRecordWrite`), and the `get_stats` RPC.
 - [state_test.go](server/go-module/state_test.go) — 14 unit tests covering every win line and every `ValidateMove` rejection path.
 
 **Wire protocol (opcodes)** — mirrored in [client/src/types/match.ts](client/src/types/match.ts):
@@ -111,6 +120,17 @@ boolean indexing breaks this silently; see §5).
 - `MatchTerminate` clears rows for every known player as a safety net.
 - Client-side `RehydrateGate` calls the RPC once on boot (first time `status=ready`), and navigates from `/` to `/game/:matchId` if a row exists. It is a **boot-time one-shot** — reconnects do not re-trigger it.
 
+**Stats + leaderboard flow (M3):**
+
+- `InitModule` calls `nk.LeaderboardCreate(ctx, "global_wins", authoritative=true, "desc", "incr", "", nil, enableRanks=true)` — idempotent across boots.
+- On transition to `finished`, `MatchLoop` calls `writeMatchStats(ctx, logger, nk, s)` **before** broadcasting `OpMatchEnded`, then sets `StatsWritten=true`. This guarantees a player's stats are already updated the moment they see the end overlay, so a manual refresh on the leaderboard page shows the new numbers immediately.
+- `writeMatchStats` iterates `MarkByUserID`, classifies each player as win/loss/draw (or `skip` for `WinReasonAbandoned`), and does a read-modify-write on `(stats, summary, userId)`. Rows are `PermissionRead=2` (public) so the leaderboard page reads all top-10 streaks in a **single** batched `StorageRead` rather than N round-trips.
+- After the storage writes, if `s.Winner != ""`, a single `nk.LeaderboardRecordWrite("global_wins", winnerId, username, score=1, subscore=0, nil, nil)` is issued. The `"incr"` operator on the leaderboard means this adds 1 to the winner's total.
+- `MatchTerminate` retains the `writeMatchStats` call **gated on `!s.StatsWritten && s.Status == StatusFinished`** as a safety net for crash / shutdown paths where `MatchLoop` didn't reach the finish branch.
+- `get_stats` RPC is a thin wrapper over `readStats(ctx, nk, callerUserId)`. A first-time caller gets a **zero-valued `StatsSummary`** rather than a 404 — the Home page renders its stats strip unconditionally.
+- Client `useStats` hook pulls on boot and on every `reconnectGeneration` change, so stats that shifted while offline show up immediately after reconnect.
+- Client `/leaderboard` page: calls `listLeaderboardRecords("global_wins", null, 10)` and then a single `readStorageObjects` batch to pair each record with its owner's public stats row. `nakama-js` already parses `object.value` into a plain JS object, so no `JSON.parse` is needed client-side (see §5 gotcha 14).
+
 ### 3.2 Client (React)
 
 Files in [client/src/](client/src/):
@@ -119,8 +139,10 @@ Files in [client/src/](client/src/):
 - [context/NakamaProvider.tsx](client/src/context/NakamaProvider.tsx) — owns `Client`, `Session`, `Socket`; multiplexes `onmatchdata` / `onmatchpresence` / `onmatchmakermatched`; initial connect + exponential-backoff reconnect loop (1s → 30s cap); exposes `isReconnecting`, `reconnectGeneration`, `fetchCurrentMatch`.
 - [hooks/useMatch.ts](client/src/hooks/useMatch.ts) — joins/leaves a match (optional matchmaker token on first join), routes opcodes through a reducer, exposes `makeMove`.
 - [lib/nakama.ts](client/src/lib/nakama.ts) — env-var validation, device-id lifecycle (`crypto.randomUUID` → localStorage).
-- [pages/Home.tsx](client/src/pages/Home.tsx) — lobby: display-name editor, mode toggle, **Find a match** (matchmaker), create / join flows, cancellable search state.
+- [hooks/useStats.ts](client/src/hooks/useStats.ts) — fetches the caller's stats via `get_stats`; refetches on boot and on every reconnect. Zero-valued default means the UI never flashes a spinner on first paint.
+- [pages/Home.tsx](client/src/pages/Home.tsx) — lobby: display-name editor, stats strip, mode toggle, **Find a match** (matchmaker), create / join flows, cancellable search state, footer link to leaderboard.
 - [pages/Game.tsx](client/src/pages/Game.tsx) — board + players + timer + waiting state + end overlay. Reads `?t=<token>` from URL for matchmaker-origin joins.
+- [pages/Leaderboard.tsx](client/src/pages/Leaderboard.tsx) — top 10 view. One `listLeaderboardRecords` call + one batched `readStorageObjects` to hydrate streak + classic/timed split per row.
 - [components/ui/](client/src/components/ui/) — `Button`, `TextInput`, `ModeToggle` (primitives).
 - [components/game/](client/src/components/game/) — `Board`, `Cell`, `Timer`, `PlayerBadge`, `EndOverlay`.
 - [styles/tokens.css](client/src/styles/tokens.css) — the design system (palette, type, spacing, motion).
@@ -176,6 +198,13 @@ re-litigate them without a real reason.
 | `RehydrateGate` is boot-time one-shot (ref-gated) | Auto-navigate only on the first successful connect this session. Reconnects don't re-trigger — `useMatch` already resumes the in-game session naturally when a new socket attaches. |
 | Matchmaker token via URL query `?t=...` | Threaded through the route because only the first join needs it; on refresh the user is already a known presence and Nakama accepts the join as a reconnect with no token. |
 | Single accent colour, no gradients | Deliberate visual language (chess.com / Linear / Notion feel). User explicitly rejected AI-default "purple-pink gradient" look. |
+| Stats write from `MatchLoop`, not `MatchTerminate` | Users expect counts to update before the end overlay fades. `MatchTerminate` runs ~30s later (empty-ticks timer) and is kept only as a crash-path safety net, gated on `!StatsWritten`. |
+| Stats rows public-readable (`PermissionRead=2`) | Enables the leaderboard page to batch-hydrate every top-10 row's streak / per-mode split in a single `readStorageObjects` call instead of N round-trips per visit. Server holds sole write authority (`PermissionWrite=0`). |
+| `get_stats` returns zero for first-time player | Not a 404. Zero-valued `StatsSummary` reads cleanly as "no games yet" and lets the Home strip render unconditionally — no existence branch on the client. |
+| `readStats` swallows malformed rows as zero | A corrupt stats row is one player's history, not a match-finish stopper. Silently resetting is strictly better than blocking the write and leaving both players with stale counts. |
+| Abandoned matches don't write stats | `WinReason=="abandoned"` means nobody ever joined. Writing would inflate `losses` on a ghost match. Filter at the top of `writeMatchStats`. |
+| Leaderboard increment via `score=1` with `"incr"` operator | `LeaderboardCreate` is configured with `operator="incr"` so a `score=1` write increments the owner's total by 1. No read-modify-write dance required for the win count itself. |
+| Client-side leaderboard streak column reads the public stats row | Nakama's leaderboard record only holds the score — streak and per-mode split live on the owner's `stats/summary` row. The page pairs the two in a single batched read. |
 
 ---
 
@@ -196,66 +225,13 @@ A reminder list so the next session doesn't re-discover these.
 11. **BuildKit ignores `--pull=never` for base-image metadata.** Even with the image cached in the daemon's containerd store, BuildKit dials `auth.docker.io` to revalidate digest. When the corporate proxy is flaky, this stalls the whole build. Workaround: pre-pull via `docker pull heroiclabs/nakama:3.38.0` (daemon path has working proxy), then `docker compose up --build --pull=never`.
 12. **Docker Desktop 29.x displays `HTTP Proxy: http.docker.internal:3128` in `docker info` even when upstream proxy is configured.** That's the internal gateway — the real upstream (Intel proxy) sits behind it. Don't assume the proxy is unset based on `docker info` alone; test with `docker pull alpine:latest` instead.
 13. **Rehydrate races match-end.** If the active_match row lives until `MatchTerminate` (30 empty ticks), a user who clicks Back to Lobby can be bounced right back. Clear the row on `MatchLeave` when the match is already `StatusFinished`. On the client, `RehydrateGate` is a boot-time one-shot — don't re-run on every reconnect.
+14. **`nakama-js` hydrates `ApiStorageObject.value` into an `object`, not a JSON string.** The server sends `value` as a JSON string, but the SDK parses it for you before handing it over. Calling `JSON.parse(obj.value)` on the client is both a TypeScript error (the type is `object`, not `string`) and a runtime double-parse. Treat the client-side `obj.value` as the parsed object directly — opposite to what the Go server's `obj.Value` string returns.
 
 ---
 
 ## 6 · Remaining work
 
-### 6.1 M3 — Leaderboard + per-user stats
-
-**Goal:** every finished match updates win/loss/draw counts and a global
-"wins" leaderboard. Home and Game pages show the top 10 and the caller's
-current streak.
-
-**Components to build:**
-
-1. **Leaderboard init** in `InitModule`:
-   ```go
-   nk.LeaderboardCreate(ctx, "global_wins", true, "desc", "incr", "", nil, true)
-   ```
-   Authoritative, descending, increment operator, never resets, ranks enabled.
-
-2. **Stats writer** (new file `server/go-module/stats.go`):
-   - Called from `MatchLoop` the moment status transitions to `finished` (not from `MatchTerminate` — users expect their count to update before the overlay finishes fading).
-   - Updates storage collection `stats`, key `summary`, owner = each player:
-     ```json
-     { "wins": 0, "losses": 0, "draws": 0,
-       "currentStreak": 0, "bestStreak": 0,
-       "classicWins": 0, "timedWins": 0 }
-     ```
-   - Writes `nk.LeaderboardRecordWrite(ctx, "global_wins", winnerId, username, 1, 0, nil, nil)` for the winner only.
-   - Sets `StatsWritten=true` (already a field on state).
-
-3. **`get_stats` RPC** — returns caller's row for Home masthead and profile.
-
-4. **Leaderboard page** (new `client/src/pages/Leaderboard.tsx`):
-   - `client.listLeaderboardRecords(session, "global_wins", null, 10)`
-   - Paired storage reads for each entry's streak + classic/timed split.
-   - Route `/leaderboard` in `App.tsx`.
-
-5. **Home page eyebrow strip**: show caller's wins / losses / streak next to the display-name tag.
-
-**New files:**
-- `server/go-module/stats.go`
-- `client/src/pages/Leaderboard.tsx` + `.module.css`
-- `client/src/hooks/useStats.ts`
-
-**Verification:**
-- Play a match, win, refresh → stats row shows `wins: 1`.
-- Win three in a row → `currentStreak: 3, bestStreak: 3`.
-- Lose once → `currentStreak: 0, bestStreak: 3`.
-- Leaderboard page shows top 10 across all users.
-- Draw doesn't increment wins, does increment draws.
-
-**Commit plan:**
-1. `feat(server): create global_wins leaderboard in InitModule`
-2. `feat(server): stats + leaderboard writes at match finish`
-3. `feat(server): get_stats RPC`
-4. `feat(client): leaderboard page + home stats strip`
-
----
-
-### 6.2 M4 — Production deploy
+### 6.1 M4 — Production deploy
 
 **Goal:** the live URL from the assignment brief. Game reachable at a
 public hostname, backed by a real Nakama instance with TLS, running
@@ -328,8 +304,8 @@ under a process supervisor with daily backups.
 
 If you're reading this after a chat compaction:
 
-1. Run `git log --oneline` — top commits should be `603f0b6` (back-to-lobby fix) → `5c83dd3` → `4c3bed8` → `c759226` → `d2bde27` → `2daf466` (M1 plan snapshot). If not, the state described in §3 may have drifted; trust the code.
+1. Run `git log --oneline` — top commits should be `bd4cef3` (M3 client) → `eeb3661` (get_stats) → `c520d6f` (stats writer) → `789f3d0` (leaderboard init) → `0bd6fb0` (M2 plan snapshot) → `603f0b6` (back-to-lobby fix) → older. If not, the state described in §3 may have drifted; trust the code.
 2. `docker ps` — if Nakama + Postgres are up, skip to the task. Otherwise `npm run dev`. **Known proxy gotcha:** if BuildKit stalls on `[internal] load metadata`, pre-pull the base images via `docker pull heroiclabs/nakama:3.38.0` + `docker pull heroiclabs/nakama-pluginbuilder:3.38.0`, then run with `--pull=never` (see §5 gotcha 11).
 3. Read `PLAN.md` §4 (decisions) and §5 (gotchas) before touching server code. **Most bugs we've hit are foot-guns listed there.**
 4. **Commit cadence: one meaningful chunk per commit, conventional-style messages (`feat(server): ...`, `fix(client): ...`). Don't push until asked.**
-5. Start at §6.1 (M3 — leaderboard + stats) unless directed otherwise.
+5. Start at §6.1 (M4 — production deploy) unless directed otherwise.
