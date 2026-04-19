@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/heroiclabs/nakama-common/runtime"
 )
@@ -30,8 +31,12 @@ func InitModule(
 ) error {
 	logger.Info("tic-tac-toe module: loading (match=%q)", MatchModuleName)
 
-	// Subsequent commits will register the match handler, RPCs, the
-	// matchmaker hook, and the global leaderboard here.
+	if err := initializer.RegisterMatch(MatchModuleName, NewMatch); err != nil {
+		return fmt.Errorf("register match %q: %w", MatchModuleName, err)
+	}
+
+	// Subsequent commits register the private-room RPCs, the matchmaker
+	// hook, and the global leaderboard here.
 
 	logger.Info("tic-tac-toe module: ready")
 	return nil

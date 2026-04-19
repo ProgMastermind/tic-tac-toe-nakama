@@ -99,6 +99,12 @@ type MatchState struct {
 
 	Mode string // ModeClassic | ModeTimed
 
+	// Code is the private-room share code, if this match was opened via
+	// create_private_match. Empty for matches created by the matchmaker
+	// hook. Round-tripped through the match label so MatchList lookups by
+	// code work end-to-end.
+	Code string
+
 	// Board is row-major — indices 0..2 top, 3..5 middle, 6..8 bottom.
 	Board [9]string
 
