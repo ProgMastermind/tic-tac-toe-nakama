@@ -69,10 +69,17 @@ const (
 // should become a field on MatchState populated from match create params.
 const TurnSeconds = 30
 
-// JoinDeadlineSeconds is how long a match waits in the waiting state for the
-// second player to actually join after matchmaker pairing. Guards against
-// one-sided half-started matches when an opponent never follows through.
-const JoinDeadlineSeconds = 15
+// JoinDeadlineSeconds is how long a match waits in the waiting state for
+// both players to actually attach. Sized for the real human-in-the-loop
+// flow of a private room: creator opens room → copies 4-char code →
+// pastes it into a chat/email/whatever → friend reads, opens the app,
+// types the code, clicks Join. 15s was fine for automated testing; 120s
+// is right for real sharing. An orphaned waiting match is cheap in
+// memory, so the generous window costs nothing.
+//
+// For the matchmaker flow in M2 the effective wait will be much shorter
+// anyway — matched clients attach immediately on notification.
+const JoinDeadlineSeconds = 120
 
 // DisconnectGraceSeconds is the window a dropped player has to reconnect
 // before the match is forfeited in their opponent's favour.
