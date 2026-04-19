@@ -182,7 +182,7 @@ func (m *Match) MatchJoin(
 			// Username is best-effort — a lookup failure should not block
 			// the join. Fall back to the presence's supplied username.
 			s.Usernames[userID] = p.GetUsername()
-			if accounts, err := nk.AccountsGetId(ctx, []string{userID}); err == nil && len(accounts) == 1 {
+			if accounts, err := nk.AccountsGetId(ctx, []string{userID}, nil); err == nil && len(accounts) == 1 {
 				if u := accounts[0].GetUser(); u != nil && u.Username != "" {
 					s.Usernames[userID] = u.Username
 				}
