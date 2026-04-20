@@ -1,15 +1,16 @@
 /*
- * Leaderboard screen. Single column — a table of the top 10. Keeping it
- * in the same editorial vocabulary as Home: warm paper, hairline borders,
- * Fraunces on the display type, JetBrains Mono on the numerics so ranks
- * and counts line up vertically without tabular-nums hacks.
+ * Leaderboard screen. Two bands: a podium for the top three arranged as
+ * silver-gold-bronze on desktop (center card tallest), and a compact
+ * table for ranks 4–10. Keeps the editorial vocabulary — warm paper,
+ * hairline borders, Fraunces on display type, JetBrains Mono on the
+ * numerics so ranks and counts line up without tabular-nums hacks.
  */
 
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
-  padding-block: var(--space-6) var(--space-8);
+  gap: var(--space-6);
+  padding-block: var(--space-5) var(--space-8);
   flex: 1;
 }
 
@@ -18,29 +19,6 @@
   flex-direction: column;
   gap: var(--space-3);
   max-width: 56ch;
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-ink-muted);
-}
-
-.eyebrowDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
-}
-
-.title {
-  font-family: var(--font-display);
-  font-size: var(--font-size-2xl);
-  font-weight: 500;
-  letter-spacing: var(--letter-tight);
-  line-height: var(--line-tight);
 }
 
 .subtitle {
@@ -53,8 +31,9 @@
   display: flex;
   gap: var(--space-4);
   align-items: center;
-  margin-top: var(--space-2);
   flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 
 .backLink {
@@ -68,15 +47,152 @@
   color: var(--color-ink);
 }
 
-/* ---- Card + table -------------------------------------------------- */
+/* ---- Podium -------------------------------------------------------- */
+
+.podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  align-items: end;
+}
+
+/* Podium arrangement: rank 2 left, rank 1 center, rank 3 right. The
+ * center card sits taller so the eye lands on the champion without us
+ * needing a crown or a gold gradient. */
+.podiumCard {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-scallop);
+  padding: var(--space-5) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  position: relative;
+  min-width: 0;
+}
+
+.podiumGold {
+  padding-block: var(--space-6) var(--space-5);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+}
+
+.podiumRank {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-ink-subtle);
+  letter-spacing: var(--letter-tight);
+}
+
+.podiumRankGold {
+  color: var(--color-accent);
+  font-size: calc(var(--font-size-2xl) * 1.15);
+}
+
+.podiumMonogram {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  letter-spacing: var(--letter-tight);
+  background: var(--color-bg-sunken);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+
+.podiumMonogramGold {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  border-color: var(--color-accent-soft);
+}
+
+.podiumName {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  letter-spacing: var(--letter-tight);
+}
+
+.podiumWins {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1;
+  margin-top: var(--space-2);
+}
+
+.podiumWinsLabel {
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+
+.podiumStreak {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-muted);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .podium {
+    grid-template-columns: 1fr;
+  }
+  .podiumGold {
+    padding-block: var(--space-5);
+  }
+}
+
+/* ---- Table of ranks 4–10 ------------------------------------------ */
 
 .card {
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   overflow-x: auto;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  letter-spacing: var(--letter-tight);
+}
+
+.cardTail {
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono);
+  letter-spacing: var(--letter-wide);
 }
 
 .stateMessage {
@@ -108,7 +224,7 @@
 }
 
 .table td {
-  padding: var(--space-4) var(--space-3);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
   color: var(--color-ink);
@@ -116,6 +232,10 @@
 
 .table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.row:nth-child(even) {
+  background: color-mix(in oklab, var(--color-bg-sunken) 40%, transparent);
 }
 
 .row:hover {
@@ -132,8 +252,26 @@
   width: 3ch;
 }
 
-.player {
+.playerCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
   min-width: 0;
+}
+
+.monogram {
+  flex: 0 0 auto;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  background: var(--color-bg-sunken);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
 }
 
 .playerName {
@@ -141,9 +279,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: inline-block;
-  max-width: 28ch;
-  vertical-align: middle;
+  max-width: 24ch;
 }
 
 .num,
@@ -177,12 +313,19 @@
 /* ---- Empty state --------------------------------------------------- */
 
 .empty {
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-7) var(--space-4);
   text-align: center;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   align-items: center;
+}
+
+.emptyMark {
+  width: 4.5rem;
+  height: 4.5rem;
+  color: var(--color-border-strong);
+  margin-bottom: var(--space-3);
 }
 
 .emptyEyebrow {
