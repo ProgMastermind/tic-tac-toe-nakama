@@ -10,6 +10,7 @@ dist-tsc/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Go
 server/go-module/vendor/
