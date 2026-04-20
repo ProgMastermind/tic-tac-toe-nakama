@@ -10,26 +10,14 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
-// Match is the authoritative tic-tac-toe match handler. It holds no per-match
-// data — all state lives on *MatchState which Nakama threads through every
-// callback — so the same *Match instance can serve many concurrent matches.
+// Match holds no per-match data — state lives on *MatchState which Nakama
+// threads through every callback — so one *Match serves many concurrent matches.
 type Match struct{}
 
-// NewMatch is the factory Nakama calls once per match it spins up. It is
-// registered in InitModule under the MatchModuleName identifier.
 func NewMatch(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error) {
 	return &Match{}, nil
 }
 
-// -----------------------------------------------------------------------------
-// MatchInit
-//
-// Called once when nk.MatchCreate returns. Params carry everything the match
-// needs to know about its origin: the requested mode, the users the
-// matchmaker (or a private-room RPC) expects to join, and the private-room
-// code if any. We fail loudly on malformed input since the caller of
-// MatchCreate is always our own code.
-// -----------------------------------------------------------------------------
 func (m *Match) MatchInit(
 	ctx context.Context,
 	logger runtime.Logger,
@@ -42,11 +30,10 @@ func (m *Match) MatchInit(
 	mode, ok := params["mode"].(string)
 	if !ok || (mode != ModeClassic && mode != ModeTimed) {
 		logger.Error("MatchInit refused: missing or invalid mode param (match=%s)", matchID)
-		// Returning nil state aborts match creation.
 		return nil, 0, ""
 	}
 
-	code, _ := params["code"].(string) // optional — only set for private rooms
+	code, _ := params["code"].(string)
 	creator, _ := params["creator"].(string)
 
 	expectedUsers := readStringSlice(params, "expected_users")
@@ -56,9 +43,6 @@ func (m *Match) MatchInit(
 	state.Creator = creator
 	state.JoinDeadlineMs = time.Now().UnixMilli() + int64(JoinDeadlineSeconds*1000)
 
-	// If the caller supplied `creator` explicitly (private rooms do), use
-	// it. Otherwise fall back to the first expected user — that's the
-	// shape M2's matchmaker hook will pass in.
 	if state.Creator == "" && len(expectedUsers) > 0 {
 		state.Creator = expectedUsers[0]
 	}
@@ -72,16 +56,10 @@ func (m *Match) MatchInit(
 	logger.Info("MatchInit match=%s mode=%s code=%q expected=%v",
 		matchID, mode, code, expectedUsers)
 
-	// 20Hz tick rate keeps move-apply latency under ~50ms worst case so
-	// players get near-instant feedback. Timers are still checked every
-	// tick but their thresholds are all measured in milliseconds so the
-	// higher rate costs us nothing in accuracy or CPU.
 	return state, TickRate, labelJSON
 }
 
-// readStringSlice coerces a []interface{} or []string param into []string.
-// nk.MatchCreate passes params through JSON, which turns slices into
-// []interface{} even when the caller supplied []string.
+// nk.MatchCreate passes params through JSON, so []string arrives as []interface{}.
 func readStringSlice(params map[string]interface{}, key string) []string {
 	v, ok := params[key]
 	if !ok || v == nil {
@@ -103,15 +81,6 @@ func readStringSlice(params map[string]interface{}, key string) []string {
 	}
 }
 
-// -----------------------------------------------------------------------------
-// MatchJoinAttempt
-//
-// Gate users before they fully join. For matchmaker-initiated matches we
-// accept only the users the matchmaker listed; for private rooms we accept
-// the first two users who arrive. Either way we refuse a third — the
-// dispatcher will silently reuse the existing slot on reconnect, so we
-// don't need special-case logic for that here.
-// -----------------------------------------------------------------------------
 func (m *Match) MatchJoinAttempt(
 	ctx context.Context,
 	logger runtime.Logger,
@@ -126,15 +95,13 @@ func (m *Match) MatchJoinAttempt(
 	s := state.(*MatchState)
 	userID := presence.GetUserId()
 
-	// If the user is a known player reconnecting (still has a mark in our
-	// bookkeeping), always let them back in. They rejoin their own slot.
+	// Reconnecting player — always let them back into their own slot.
 	if _, hasMark := s.MarkByUserID[userID]; hasMark {
 		return s, true, ""
 	}
 
-	// Matchmaker-origin matches carry an ExpectedUsers list. Anyone not on
-	// it is rejected — this is how we prevent third parties from sniping a
-	// public match out from under a paired opponent.
+	// Matchmaker matches carry an ExpectedUsers list; reject anyone else
+	// so a stranger can't snipe a paired slot.
 	if len(s.ExpectedUsers) > 0 {
 		for _, expected := range s.ExpectedUsers {
 			if expected == userID {
@@ -146,20 +113,12 @@ func (m *Match) MatchJoinAttempt(
 		return s, false, "not invited to this match"
 	}
 
-	// Private room: accept until two unique players have a mark.
 	if len(s.MarkByUserID) < 2 {
 		return s, true, ""
 	}
 	return s, false, "match is full"
 }
 
-// -----------------------------------------------------------------------------
-// MatchJoin
-//
-// Presences have been accepted and are now attached. This is the point at
-// which we assign marks, load usernames for later leaderboard writes, and
-// transition from waiting to playing once the second player arrives.
-// -----------------------------------------------------------------------------
 func (m *Match) MatchJoin(
 	ctx context.Context,
 	logger runtime.Logger,
@@ -176,7 +135,6 @@ func (m *Match) MatchJoin(
 	for _, p := range presences {
 		userID := p.GetUserId()
 		s.Presences[userID] = p
-		// A reconnect clears any pending forfeit timer.
 		delete(s.DisconnectAtMs, userID)
 
 		newPlayer := false
@@ -191,8 +149,7 @@ func (m *Match) MatchJoin(
 		}
 
 		if _, have := s.Usernames[userID]; !have {
-			// Username is best-effort — a lookup failure should not block
-			// the join. Fall back to the presence's supplied username.
+			// Fall back to presence username if the account lookup fails.
 			s.Usernames[userID] = p.GetUsername()
 			if accounts, err := nk.AccountsGetId(ctx, []string{userID}, nil); err == nil && len(accounts) == 1 {
 				if u := accounts[0].GetUser(); u != nil && u.Username != "" {
@@ -201,22 +158,15 @@ func (m *Match) MatchJoin(
 			}
 		}
 
-		// Record the active-match pointer so this user can rehydrate if
-		// they refresh or lose the socket. Only run on first-time joiners
-		// — a reconnect already has a row and rewriting it is harmless
-		// but wastes a storage round-trip per heartbeat.
 		if newPlayer {
 			if err := writeActiveMatch(ctx, nk, userID, s.MatchID, s.MarkByUserID[userID], s.Mode); err != nil {
-				// Rehydrate is a convenience, not a correctness
-				// requirement. Log and carry on so a storage blip does
-				// not prevent the match from starting.
+				// Rehydrate is a convenience, not correctness — don't fail the join.
 				logger.Warn("match=%s active_match write user=%s err=%v",
 					s.MatchID, userID, err)
 			}
 		}
 	}
 
-	// Transition from waiting to playing once two distinct players are in.
 	if s.Status == StatusWaiting && len(s.UserIDByMark) == 2 && len(s.Presences) == 2 {
 		s.Status = StatusPlaying
 		s.TurnMark = MarkX
@@ -234,9 +184,6 @@ func (m *Match) MatchJoin(
 	return s
 }
 
-// labelFor re-serialises the current match label. The `open` flag reflects
-// whether the room still accepts a second player and is flipped to false
-// once both players have joined.
 func labelFor(logger runtime.Logger, s *MatchState, open bool) string {
 	j, err := (MatchLabel{
 		Mode:    s.Mode,
@@ -251,12 +198,7 @@ func labelFor(logger runtime.Logger, s *MatchState, open bool) string {
 	return j
 }
 
-// -----------------------------------------------------------------------------
-// MatchLeave
-//
-// A presence disappears. We don't immediately forfeit — the grace window
-// lets a flaky network recover. MatchLoop handles the eventual forfeit.
-// -----------------------------------------------------------------------------
+// Presence drop arms a grace window; MatchLoop forfeits if it elapses.
 func (m *Match) MatchLeave(
 	ctx context.Context,
 	logger runtime.Logger,
@@ -273,18 +215,12 @@ func (m *Match) MatchLeave(
 	for _, p := range presences {
 		userID := p.GetUserId()
 		delete(s.Presences, userID)
-		// Only arm the grace clock for players that are actually in the
-		// match — this avoids tracking someone whose join we rejected.
 		if _, isPlayer := s.MarkByUserID[userID]; !isPlayer {
 			continue
 		}
 		if s.Status == StatusFinished {
-			// Match is already over. Drop the rehydrate pointer now so
-			// this user cannot be auto-redirected back into a match they
-			// have just seen to completion. MatchTerminate still clears
-			// as a safety net, but the 30-tick grace window is too long
-			// to rely on — a client that lands on "/" in the meantime
-			// would otherwise bounce straight back into the end overlay.
+			// Clear the rehydrate pointer eagerly — MatchTerminate's 30-tick
+			// grace is too long; a client landing on "/" would bounce back.
 			if err := clearActiveMatch(ctx, nk, userID); err != nil {
 				logger.Warn("match=%s active_match clear on leave user=%s err=%v",
 					s.MatchID, userID, err)
@@ -298,19 +234,6 @@ func (m *Match) MatchLeave(
 	return s
 }
 
-// -----------------------------------------------------------------------------
-// MatchLoop
-//
-// One tick per second. Responsibilities, in order:
-//
-//	1. Abort a match that never had both players join.
-//	2. Forfeit a player whose disconnect grace window has elapsed.
-//	3. Validate and apply inbound move messages, per sender.
-//	4. Forfeit a turn that timed out in timed mode.
-//	5. Broadcast a state update if any of the above changed state.
-//	6. Emit OpMatchEnded on transition to finished.
-//	7. Terminate the match once it has been idle-finished long enough.
-// -----------------------------------------------------------------------------
 func (m *Match) MatchLoop(
 	ctx context.Context,
 	logger runtime.Logger,
@@ -325,7 +248,6 @@ func (m *Match) MatchLoop(
 	nowMs := time.Now().UnixMilli()
 	changed := false
 
-	// (1) Abort orphaned waiting matches.
 	if s.Status == StatusWaiting && nowMs > s.JoinDeadlineMs {
 		s.Status = StatusFinished
 		s.WinReason = WinReasonAbandoned
@@ -333,7 +255,6 @@ func (m *Match) MatchLoop(
 		logger.Info("match=%s abandoned: join deadline expired", s.MatchID)
 	}
 
-	// (2) Disconnect grace window.
 	if s.Status == StatusPlaying {
 		for userID, droppedAt := range s.DisconnectAtMs {
 			if _, reconnected := s.Presences[userID]; reconnected {
@@ -347,16 +268,13 @@ func (m *Match) MatchLoop(
 				changed = true
 				logger.Info("match=%s forfeit by user=%s (disconnect grace expired)",
 					s.MatchID, userID)
-				break // One forfeit is enough to end the match.
+				break
 			}
 		}
 	}
 
-	// (3) Process inbound messages.
 	for _, msg := range messages {
 		if s.Status != StatusPlaying {
-			// Silently drop — no point error-spamming players whose match
-			// ended mid-tick.
 			continue
 		}
 		if msg.GetOpCode() != OpMove {
@@ -382,7 +300,6 @@ func (m *Match) MatchLoop(
 		}
 	}
 
-	// (4) Turn-timer forfeit.
 	if s.Status == StatusPlaying && s.Mode == ModeTimed && nowMs > s.TurnDeadlineMs {
 		losingUser := s.UserIDByMark[s.TurnMark]
 		s.Status = StatusFinished
@@ -393,20 +310,17 @@ func (m *Match) MatchLoop(
 			s.MatchID, losingUser, s.Winner)
 	}
 
-	// (5 & 6) Broadcast state + end event.
 	if changed {
 		broadcastState(logger, dispatcher, s, nowMs)
 		if s.Status == StatusFinished && !s.StatsWritten {
 			broadcastEnded(logger, dispatcher, s)
-			// Stats and leaderboard writes run synchronously on the loop
-			// goroutine so a user seeing the end overlay can already be
-			// reflected on the leaderboard by the time they get there.
+			// Write synchronously so the leaderboard reflects the win
+			// before the user navigates to it from the end overlay.
 			writeMatchStats(ctx, logger, nk, s)
 			s.StatsWritten = true
 		}
 	}
 
-	// (7) Tear down long-idle finished matches.
 	if s.Status == StatusFinished {
 		if len(s.Presences) == 0 {
 			s.EmptyTicks++
@@ -416,21 +330,13 @@ func (m *Match) MatchLoop(
 		if s.EmptyTicks >= EmptyMatchTicks {
 			logger.Info("match=%s terminating: empty for %d ticks",
 				s.MatchID, s.EmptyTicks)
-			return nil // Returning nil tells Nakama to shut the match down.
+			return nil
 		}
 	}
 
 	return s
 }
 
-// -----------------------------------------------------------------------------
-// MatchTerminate
-//
-// Final cleanup when Nakama tears the match down (either because we returned
-// nil from MatchLoop, or the server is shutting down). We do not rely on
-// this as the primary place to emit match-ended side effects because it is
-// not guaranteed to execute with the full grace window in all crash paths.
-// -----------------------------------------------------------------------------
 func (m *Match) MatchTerminate(
 	ctx context.Context,
 	logger runtime.Logger,
@@ -445,10 +351,8 @@ func (m *Match) MatchTerminate(
 	logger.Info("MatchTerminate match=%s grace=%d status=%s statsWritten=%v",
 		s.MatchID, graceSeconds, s.Status, s.StatsWritten)
 
-	// Clear rehydrate pointers for every player we ever saw. Iterating
-	// MarkByUserID rather than Presences captures players who dropped
-	// mid-match but never returned — their row would otherwise linger
-	// and redirect them into a ghost match on next app load.
+	// Iterate MarkByUserID (not Presences) so players who dropped mid-match
+	// and never returned still get their rehydrate pointer cleared.
 	for userID := range s.MarkByUserID {
 		if err := clearActiveMatch(ctx, nk, userID); err != nil {
 			logger.Warn("match=%s active_match clear user=%s err=%v",
@@ -456,11 +360,7 @@ func (m *Match) MatchTerminate(
 		}
 	}
 
-	// Safety net for match-end stats writes. MatchLoop is the primary
-	// writer because users expect their counts to update before the
-	// overlay finishes fading; MatchTerminate covers the narrow window
-	// where the server tore the match down before MatchLoop's finish
-	// branch ran (panic, forced shutdown, etc.).
+	// Safety net if MatchLoop's finish branch didn't run (panic, forced shutdown).
 	if !s.StatsWritten && s.Status == StatusFinished {
 		writeMatchStats(ctx, logger, nk, s)
 		s.StatsWritten = true
@@ -468,11 +368,7 @@ func (m *Match) MatchTerminate(
 	return s
 }
 
-// -----------------------------------------------------------------------------
-// MatchSignal
-//
-// Not used by tic-tac-toe. Defined so the *Match satisfies runtime.Match.
-// -----------------------------------------------------------------------------
+// Unused by tic-tac-toe; required to satisfy runtime.Match.
 func (m *Match) MatchSignal(
 	ctx context.Context,
 	logger runtime.Logger,
@@ -486,13 +382,7 @@ func (m *Match) MatchSignal(
 	return state, ""
 }
 
-// -----------------------------------------------------------------------------
-// Internal helpers.
-// -----------------------------------------------------------------------------
-
-// opponentOf returns the userId of the other player. If the caller isn't a
-// player we return the empty string so downstream logic can still record a
-// degenerate end without panicking.
+// Returns "" if userID isn't a player, so callers can record a degenerate end.
 func opponentOf(s *MatchState, userID string) string {
 	for uid := range s.MarkByUserID {
 		if uid != userID {
@@ -502,8 +392,6 @@ func opponentOf(s *MatchState, userID string) string {
 	return ""
 }
 
-// broadcastState marshals the public projection and fans it out to all
-// presences as a reliable message. Called on every state-changing tick.
 func broadcastState(logger runtime.Logger, dispatcher runtime.MatchDispatcher, s *MatchState, nowMs int64) {
 	payload, err := json.Marshal(s.Project(nowMs))
 	if err != nil {
@@ -515,9 +403,8 @@ func broadcastState(logger runtime.Logger, dispatcher runtime.MatchDispatcher, s
 	}
 }
 
-// broadcastEnded sends a terminal notification once the match is finished.
-// Separate from the last OpStateUpdate so clients can drive distinct UI
-// (confetti, rematch prompt) without re-interpreting a state diff.
+// Separate from the final OpStateUpdate so clients can drive end-of-match UI
+// (confetti, rematch) without re-interpreting a state diff.
 func broadcastEnded(logger runtime.Logger, dispatcher runtime.MatchDispatcher, s *MatchState) {
 	payload, err := json.Marshal(MatchEndedMessage{
 		Reason:      s.WinReason,
@@ -533,20 +420,15 @@ func broadcastEnded(logger runtime.Logger, dispatcher runtime.MatchDispatcher, s
 	}
 }
 
-// sendError replies to exactly one presence (the sender of msg) with an
-// OpError payload. Never broadcast errors — they are per-sender diagnostics.
+// Reply only to the sender — errors are per-sender diagnostics, never broadcast.
 func sendError(dispatcher runtime.MatchDispatcher, msg runtime.MatchData, code, message string) {
 	payload, err := json.Marshal(ErrorMessage{Code: code, Message: message})
 	if err != nil {
-		// Falling back to an ad-hoc string keeps the client from hanging
-		// on a silent drop if Marshal somehow fails on a string literal.
 		payload = []byte(fmt.Sprintf(`{"code":%q,"message":%q}`, code, message))
 	}
 	_ = dispatcher.BroadcastMessage(OpError, payload, []runtime.Presence{msg}, nil, true)
 }
 
-// validationCode maps a ValidateMove sentinel error to a short machine code
-// the client can dispatch on.
 func validationCode(err error) string {
 	switch err {
 	case ErrNotPlaying:

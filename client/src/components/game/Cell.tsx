@@ -4,18 +4,12 @@ import styles from "./Cell.module.css";
 
 interface CellProps {
   index: number;
-  mark: string; // "", "X", or "O"
+  mark: string;
   interactive: boolean;
   winning: boolean;
   onPlay(index: number): void;
 }
 
-/**
- * A single board cell. The mark (if present) is rendered as a hand-drawn
- * SVG that animates its stroke in. Kept minimal — no Framer Motion here
- * because a CSS keyframe is sufficient and keeps the board's render path
- * fast when nine of these sit side-by-side.
- */
 export function Cell({ index, mark, interactive, winning, onPlay }: CellProps) {
   const empty = mark === "";
   const disabled = !interactive || !empty;
@@ -43,8 +37,6 @@ export function Cell({ index, mark, interactive, winning, onPlay }: CellProps) {
 }
 
 function MarkSvg({ mark }: { mark: Mark }) {
-  // The viewbox is drawn at 100x100 with a 20% interior margin so stroke
-  // ends stay inside the cell regardless of radius.
   return (
     <svg
       viewBox="0 0 100 100"
@@ -63,8 +55,6 @@ function MarkSvg({ mark }: { mark: Mark }) {
           cy="50"
           r="30"
           className={styles.markStroke}
-          // The circumference of r=30 is ~188, overshoot a touch for the
-          // dasharray baseline so the draw completes cleanly.
           style={{ strokeDasharray: 200, strokeDashoffset: 200 }}
         />
       )}

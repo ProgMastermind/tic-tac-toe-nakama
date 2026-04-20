@@ -19,16 +19,6 @@ import type {
 
 import styles from "./Home.module.css";
 
-/**
- * Home is the lobby. Three entry points into a match:
- *
- *   1. Find a match → the Nakama matchmaker pairs the caller with another
- *      random player on the same mode and auto-navigates both into the
- *      new authoritative match when the pairing resolves.
- *   2. Create a private room → opens an authoritative match with a
- *      shareable 4-character code.
- *   3. Join with a code → hops into an existing private room.
- */
 export default function Home() {
   const {
     client,
@@ -43,8 +33,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // `?mode=classic|timed` preselects the mode toggle when the user lands
-  // here from EndOverlay's "Play again" — keeps the rematch one click away.
+  // `?mode=classic|timed` preselects the toggle when arriving from EndOverlay's "Play again".
   const initialMode: GameMode =
     searchParams.get("mode") === "timed" ? "timed" : "classic";
   const [mode, setMode] = useState<GameMode>(initialMode);
@@ -55,9 +44,8 @@ export default function Home() {
   const [joining, setJoining] = useState(false);
   const [lobbyError, setLobbyError] = useState<string | null>(null);
 
-  // Matchmaker flow state. `ticket` is non-null while a search is in
-  // progress. A ref mirrors it so the unmount cleanup and the matched
-  // callback both see the live value without stale-closure gymnastics.
+  // Ref mirror of `ticket` so unmount cleanup and the matched callback
+  // read the live value without stale-closure gymnastics.
   const [ticket, setTicket] = useState<string | null>(null);
   const [matchmaking, setMatchmaking] = useState(false);
   const ticketRef = useRef<string | null>(null);
@@ -73,10 +61,8 @@ export default function Home() {
   const searching = ticket !== null;
   const anyBusy = creating || joining || matchmaking || searching;
 
-  // ---- Matchmaker: subscribe to matched notifications ----------------
   useEffect(() => {
     const unsubscribe = registerMatchmakerMatchedHandler((matched) => {
-      // nakama-js exposes snake_case on event payloads.
       const matchId = (matched as { match_id?: string }).match_id;
       const token = (matched as { token?: string }).token;
       if (!matchId) return;
@@ -94,8 +80,8 @@ export default function Home() {
     return unsubscribe;
   }, [navigate, registerMatchmakerMatchedHandler]);
 
-  // If the user navigates away mid-search, cancel the ticket so they
-  // don't get dropped into a stale match later.
+  // Cancel the matchmaker ticket on unmount so a stale pairing doesn't
+  // land the user in a match after they've left the lobby.
   useEffect(() => {
     return () => {
       const stale = ticketRef.current;
@@ -112,8 +98,8 @@ export default function Home() {
     try {
       const resp = await socket.addMatchmaker(
         `+properties.mode:${mode}`,
-        /*minCount*/ 2,
-        /*maxCount*/ 2,
+        2,
+        2,
         { mode },
         {},
       );
@@ -132,8 +118,7 @@ export default function Home() {
     try {
       await socket.removeMatchmaker(current);
     } catch {
-      // Ticket may have already matched between click and remove; treat
-      // the client-side state as the source of truth for UI.
+      // Ticket may have matched between click and remove — client state wins.
     } finally {
       ticketRef.current = null;
       setTicket(null);
@@ -328,13 +313,6 @@ export default function Home() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-
-/**
- * Inline display-name editor. Collapsed into a tag showing the current
- * name; clicking opens a small form. Kept out of a modal because a modal
- * here would feel disproportionate for one field.
- */
 function DisplayNameStrip({
   displayName,
   onSave,
@@ -408,12 +386,6 @@ function DisplayNameStrip({
   );
 }
 
-/**
- * RecordCard is a compact three-cell strip beneath the action card.
- * Lower visual weight than the CTA on purpose — it provides evidence of
- * progress without competing with "Find a match" for attention. Streak
- * goes accent-coloured only while it's actually alive (>0).
- */
 function RecordCard({ stats }: { stats: StatsSummary }) {
   const streakAlive = stats.currentStreak > 0;
   return (
@@ -466,10 +438,6 @@ function RecordCard({ stats }: { stats: StatsSummary }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* RPC helpers                                                         */
-/* ------------------------------------------------------------------ */
-
 function parseRpc<T>(payload: object | string | undefined): T {
   if (payload == null) throw new Error("empty response");
   if (typeof payload === "string") return JSON.parse(payload) as T;
@@ -481,9 +449,7 @@ async function formatRpcError(err: unknown, fallback: string): Promise<string> {
     try {
       const body = (await (err as { json: () => Promise<{ message?: string }> }).json()) ?? {};
       if (body?.message) return body.message;
-    } catch {
-      // fall through
-    }
+    } catch {}
   }
   if (err instanceof Error && err.message) return err.message;
   return fallback;

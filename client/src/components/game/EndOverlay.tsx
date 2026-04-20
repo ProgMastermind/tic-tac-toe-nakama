@@ -14,13 +14,6 @@ interface EndOverlayProps {
   onBackToLobby(): void;
 }
 
-/**
- * End-of-match overlay. Derives "did I win" from the server's winner
- * field (never derives anything from the board locally). Confetti fires
- * once on mount for the winner only — losing and drawing stay quiet.
- * Refreshes the stats hook on mount so the "Your record" echo shows the
- * counts including this match.
- */
 export function EndOverlay({
   state,
   end,
@@ -35,17 +28,14 @@ export function EndOverlay({
   const winnerMark: Mark | null =
     (winnerUserId && (state.markByUserId[winnerUserId] as Mark)) || null;
 
-  // Re-pull the record so the echo reflects this match. The server writes
-  // stats in the same tick as OpMatchEnded, so by the time we mount the
-  // row on disk is already updated.
+  // Server writes stats in the same tick as OpMatchEnded, so the row is
+  // already updated by the time the overlay mounts.
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   useEffect(() => {
     if (!isWin) return;
-    // Keep the celebration brief and considered — two small bursts that
-    // fade instead of a firehose so the page stays elegant.
     const burst = (origin: { x: number; y: number }) => {
       confetti({
         particleCount: 36,

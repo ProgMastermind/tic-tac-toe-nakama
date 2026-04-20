@@ -1,12 +1,5 @@
-# -----------------------------------------------------------------------------
-# Local development stack: Postgres + Nakama (with the compiled Go plugin).
-#
-# Run from the repository root:
+# Local dev: Postgres + Nakama with the compiled Go plugin.
 #   docker compose -f deploy/docker-compose.yml up --build
-#
-# The build context is the repo root so the Dockerfile at server/Dockerfile
-# can reach both server/go-module and deploy/local.yml.
-# -----------------------------------------------------------------------------
 
 services:
   postgres:
@@ -21,9 +14,7 @@ services:
       POSTGRES_PASSWORD: localdb
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # Postgres is reachable only on the compose network in dev — no host
-    # port is published, which keeps the database off 0.0.0.0 on developer
-    # laptops without having to manage a firewall.
+    # Compose-network only; no host port → database stays off 0.0.0.0 on laptops.
     expose:
       - "5432"
     healthcheck:
@@ -40,17 +31,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # NOTE: with a YAML folded scalar (`>`), indented continuation lines
-    # preserve newlines — which breaks shell commands mid-argument. Each
-    # command below stays on one physical line to avoid that pitfall.
+    # Each command below is on one physical line — YAML folded scalars with
+    # indented continuations preserve newlines and break shell args.
     entrypoint:
       - "/bin/sh"
       - "-ecx"
       - >
         /nakama/nakama migrate up --database.address postgres:localdb@postgres:5432/nakama &&
         exec /nakama/nakama --config /nakama/data/local.yml --database.address postgres:localdb@postgres:5432/nakama
-    # 7349 gRPC API, 7350 WebSocket + HTTP API, 7351 developer console.
-    # Bind the console to loopback so it's not exposed to the LAN on dev machines.
+    # 7349 gRPC, 7350 WS+HTTP, 7351 console (loopback-only).
     ports:
       - "7349:7349"
       - "7350:7350"

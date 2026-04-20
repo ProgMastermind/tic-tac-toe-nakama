@@ -3,18 +3,11 @@ import { useEffect, useState } from "react";
 import styles from "./Timer.module.css";
 
 interface TimerProps {
-  /** Absolute unix-ms deadline the server has set for the current turn. */
   deadlineMs: number;
-  /** Total turn length in seconds (used to scale the progress bar). */
   turnSeconds: number;
 }
 
-/**
- * Timer is seeded from the server's turnDeadlineMs and ticks locally off
- * requestAnimationFrame. The server remains the authority on forfeit —
- * if the client clock is skewed we might *show* 00:00 a beat early or
- * late, but only the server's OpMatchEnded signal ever ends the game.
- */
+// Display-only; OpMatchEnded from the server is the sole authority on forfeit.
 export function Timer({ deadlineMs, turnSeconds }: TimerProps) {
   const [remaining, setRemaining] = useState(() => Math.max(0, deadlineMs - Date.now()));
 

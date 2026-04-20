@@ -9,12 +9,6 @@ interface PlayerBadgeProps {
   active: boolean;
 }
 
-/**
- * A scorecard-style player row with a small SVG X/O mark matching the
- * board cells, the player's name, and a live indicator of whose turn it
- * is. Active state gets a soft pulsing dot plus a bolder border so the
- * screen reads at a glance — no need to hunt for the status text.
- */
 export function PlayerBadge({ mark, name, isSelf, active }: PlayerBadgeProps) {
   const rootClass = `${styles.badge} ${active ? styles.badgeActive : ""} ${
     mark === "O" ? styles.badgeO : styles.badgeX

@@ -12,18 +12,15 @@ import type { Mark } from "@/types/match";
 
 import styles from "./Game.module.css";
 
-// Matches TurnSeconds in the Go handler. If the server changes, this
-// stays a visual concern only — the forfeit is decided server-side.
+// Display-only; forfeit is still decided server-side (matches TurnSeconds in Go).
 const TURN_SECONDS = 30;
 
 export default function Game() {
   const { matchId } = useParams<{ matchId: string }>();
   const [searchParams] = useSearchParams();
   const codeFromLobby = searchParams.get("code") ?? "";
-  // Matchmaker-origin matches arrive with a short-lived `t` token in the
-  // URL. useMatch uses it on its single initial joinMatch call. On
-  // reload / rehydrate there is no token but the user is a known
-  // presence so the server accepts the join as a reconnect.
+  // Matchmaker-origin matches arrive with a short-lived `t` token; reconnects
+  // don't carry it but are accepted as rejoins by known presences.
   const matchmakerToken = searchParams.get("t") ?? undefined;
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
@@ -33,8 +30,7 @@ export default function Game() {
 
   const [copied, setCopied] = useState(false);
 
-  // Carry the just-played mode back as a URL hint so Home preselects
-  // the toggle — saves the user a click if they want to queue again.
+  // Carry the mode back as a URL hint so Home preselects the toggle.
   const onBackToLobby = useCallback(async () => {
     try {
       await leave();
@@ -44,7 +40,6 @@ export default function Game() {
     }
   }, [leave, navigate, state?.mode]);
 
-  // Copy the room code to the clipboard for the creator's convenience.
   const copyCode = useCallback(async () => {
     if (!codeFromLobby) return;
     try {
@@ -55,16 +50,13 @@ export default function Game() {
     }
   }, [codeFromLobby]);
 
-  // Reset "copied" indicator after a moment so the chip doesn't lie
-  // forever once the user has stopped paying attention to it.
   useEffect(() => {
     if (!copied) return;
     const t = setTimeout(() => setCopied(false), 1800);
     return () => clearTimeout(t);
   }, [copied]);
 
-  // Build the pair of player rows. The current player is always shown on
-  // the left for a stable mental model.
+  // Self always shown on the left for a stable mental model.
   const players = useMemo(() => {
     if (!state) return null;
     const xId = state.userIdByMark.X ?? "";
@@ -94,8 +86,6 @@ export default function Game() {
   const isTimed = state?.mode === "timed";
   const modeLabel = isTimed ? "Timed · 30s" : "Classic";
 
-  // Shared topbar so the breadcrumb stays consistent across waiting,
-  // playing, and finished states.
   const topbar = (
     <div className={styles.topbar}>
       <nav className={styles.crumbs} aria-label="Breadcrumb">
@@ -135,8 +125,6 @@ export default function Game() {
         transition: { duration: 0.24, ease: [0.2, 0.8, 0.2, 1] as const },
       };
 
-  // Before the first state update, show the same connecting shell — but
-  // keep the back button available so users are never stuck.
   if (!joined || !state) {
     return (
       <main className={`app-shell ${styles.screen}`}>
@@ -206,10 +194,8 @@ export default function Game() {
               state={state}
               interactive={isMyTurn && !isFinished}
               onPlay={(cell) => {
-                makeMove(cell).catch(() => {
-                  // Errors from the socket are rare; the server-echoed
-                  // OpError provides the per-rule validation messages.
-                });
+                // Socket errors are rare; server-echoed OpError carries validation msgs.
+                makeMove(cell).catch(() => {});
               }}
             />
           </>
@@ -228,14 +214,6 @@ export default function Game() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-
-/**
- * Shared empty/loading state. The ghost board is a faint SVG that
- * echoes the real grid so the wait reads as intentional framing rather
- * than a missing component. One cell softly pulses a mark in accent to
- * hint at the board coming online.
- */
 function WaitingState({
   title,
   body,
@@ -276,7 +254,6 @@ function GhostBoard() {
           />
         )),
       )}
-      {/* Accent mark inside the center cell — a quiet O that breathes. */}
       <circle cx="60" cy="60" r="10" className={styles.ghostMark} />
     </svg>
   );

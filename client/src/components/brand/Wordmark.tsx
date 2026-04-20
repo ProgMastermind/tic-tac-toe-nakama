@@ -6,11 +6,6 @@ interface WordmarkProps {
   className?: string;
 }
 
-/**
- * A compact brand lockup: a 3×3 dot grid (echoing the board) beside the
- * wordmark in Fraunces with the closing syllable italicised. Used as the
- * masthead anchor on every page, and on its own in footers.
- */
 export function Wordmark({ size = "md", variant = "full", className }: WordmarkProps) {
   const rootClass = `${styles.root} ${styles[`size_${size}`]} ${className ?? ""}`;
   return (

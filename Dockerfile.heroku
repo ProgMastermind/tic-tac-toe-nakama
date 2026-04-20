@@ -1,27 +1,11 @@
-# -----------------------------------------------------------------------------
-# Heroku production image for the Nakama server + Go plugin.
+# MUST live at the repo root. heroku.yml uses the Dockerfile's directory as
+# the build context, and there's no flag to override — so this is the only
+# place we can COPY from both server/ and deploy/.
 #
-# MUST live at the repository root. Heroku's heroku.yml uses the directory
-# containing the Dockerfile as the Docker build context, and there's no
-# flag in heroku.yml to override that — so the only way to COPY files
-# from both server/ and deploy/ is to keep this file at the root.
-#
-# Differences from server/Dockerfile (local):
-#   - Copies deploy/prod.yml instead of deploy/local.yml
-#   - Installs a heroku-entrypoint.sh shim that rewrites $DATABASE_URL into
-#     the form Nakama expects and binds the socket to Heroku's dynamic $PORT
-#   - Secrets are passed via CLI flags inside the shim, sourced from
-#     `heroku config:set` — never baked into the image
-#
-# The pluginbuilder image tag MUST stay in lockstep with the nakama image
-# tag in stage 2 — mismatched Go versions or nakama-common revisions are the
-# #1 cause of "plugin was built with a different version of package X"
-# runtime errors on boot.
-# -----------------------------------------------------------------------------
+# The pluginbuilder tag MUST match the nakama tag in stage 2. Mismatched Go
+# or nakama-common versions cause "plugin was built with a different version
+# of package X" errors at boot.
 
-# -----------------------------------------------------------------------------
-# Stage 1: build the Go plugin against the exact Nakama ABI.
-# -----------------------------------------------------------------------------
 FROM heroiclabs/nakama-pluginbuilder:3.38.0 AS builder
 
 ENV GOOS=linux \
@@ -38,21 +22,13 @@ COPY server/go-module/ ./
 RUN go mod tidy \
  && go build --trimpath --buildmode=plugin -o ./backend.so .
 
-# -----------------------------------------------------------------------------
-# Stage 2: final image — Nakama server, compiled plugin, prod config, shim.
-# -----------------------------------------------------------------------------
 FROM heroiclabs/nakama:3.38.0
 
 COPY --from=builder /backend/backend.so /nakama/data/modules/backend.so
 COPY deploy/prod.yml /nakama/data/prod.yml
 COPY server/heroku-entrypoint.sh /nakama/heroku-entrypoint.sh
 
-# Heroku ignores EXPOSE and routes a single dynamic $PORT to the dyno; the
-# shim reads $PORT at runtime and passes it via --socket.port.
-#
-# The base image sets ENTRYPOINT to the nakama binary (wrapped in tini),
-# so any CMD we set would be *appended as arguments* to nakama instead
-# of replacing it. Making the shim the ENTRYPOINT ensures it actually
-# runs and can in turn exec into nakama with our flags.
+# Override the base image's ENTRYPOINT — otherwise our CMD would be
+# appended as args to /nakama/nakama instead of replacing it.
 ENTRYPOINT ["/nakama/heroku-entrypoint.sh"]
 CMD []

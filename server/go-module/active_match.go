@@ -9,41 +9,22 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
-// -----------------------------------------------------------------------------
-// Active match storage.
-//
-// Each player attached to a live match has a single storage row written
-// under (collection=active_match, key=current, owner=userId). The row is
-// the source of truth for "where was this user last playing" and drives
-// the rehydrate flow: on page load, the client asks the server for its
-// row, and if one exists it navigates directly to the game page and
-// reconnects.
-//
-// Written: in MatchJoin, the first time each player acquires a mark.
-// Cleared: in MatchTerminate, for every player the match knew about.
-//
-// The row is owner-readable so a compromised or curious client from a
-// different account can't look up someone else's current match. The
-// server holds sole write authority (PermissionWrite = 0) since stale or
-// forged rows would break rehydrate for the owning user.
-// -----------------------------------------------------------------------------
+// One row per player under (active_match, current, userId) drives the
+// rehydrate flow — the client reads it at boot to resume an in-flight match.
+// Owner-readable and server-only-writable so another account can't snoop or
+// forge it.
 
 const (
 	activeMatchCollection = "active_match"
 	activeMatchKey        = "current"
 )
 
-// activeMatchRecord is the JSON shape written to storage and returned
-// verbatim by the get_current_match RPC. Keep field names camelCase so
-// the client can consume them directly.
 type activeMatchRecord struct {
 	MatchID string `json:"matchId"`
 	Mark    string `json:"mark"`
 	Mode    string `json:"mode"`
 }
 
-// writeActiveMatch records the player's current match. Safe to call
-// multiple times for the same player — the row is upserted by key.
 func writeActiveMatch(
 	ctx context.Context,
 	nk runtime.NakamaModule,
@@ -59,8 +40,8 @@ func writeActiveMatch(
 		Key:             activeMatchKey,
 		UserID:          userID,
 		Value:           string(value),
-		PermissionRead:  1, // owner reads only
-		PermissionWrite: 0, // server-only writes
+		PermissionRead:  1,
+		PermissionWrite: 0,
 	}})
 	if err != nil {
 		return fmt.Errorf("storage write active match: %w", err)
@@ -68,8 +49,6 @@ func writeActiveMatch(
 	return nil
 }
 
-// clearActiveMatch deletes the current-match row for userID. Missing rows
-// are treated as a no-op — the caller does not need to pre-check existence.
 func clearActiveMatch(
 	ctx context.Context,
 	nk runtime.NakamaModule,
@@ -86,9 +65,7 @@ func clearActiveMatch(
 	return nil
 }
 
-// readActiveMatch loads the current-match row for userID. Returns a nil
-// record (no error) when the row is absent — the common steady-state
-// case for a user not currently in a match.
+// Returns (nil, nil) when the row is absent — the common case.
 func readActiveMatch(
 	ctx context.Context,
 	nk runtime.NakamaModule,
@@ -107,17 +84,11 @@ func readActiveMatch(
 	}
 	var rec activeMatchRecord
 	if err := json.Unmarshal([]byte(objs[0].GetValue()), &rec); err != nil {
-		// A malformed row blocks rehydrate — treat as absent rather than
-		// propagating a hard error that would show the user a scary
-		// toast. The row will be overwritten next time they join a match.
+		// Treat a malformed row as absent — the next MatchJoin overwrites it.
 		return nil, nil
 	}
 	return &rec, nil
 }
-
-// -----------------------------------------------------------------------------
-// get_current_match RPC.
-// -----------------------------------------------------------------------------
 
 type getCurrentMatchResponse struct {
 	Active  bool   `json:"active"`
@@ -126,9 +97,6 @@ type getCurrentMatchResponse struct {
 	Mode    string `json:"mode,omitempty"`
 }
 
-// RpcGetCurrentMatch is registered under "get_current_match". Clients call
-// it once on app boot to learn whether they need to resume an in-flight
-// match before rendering the lobby.
 func RpcGetCurrentMatch(
 	ctx context.Context,
 	logger runtime.Logger,

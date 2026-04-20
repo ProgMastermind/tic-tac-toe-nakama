@@ -11,17 +11,6 @@ import styles from "./Leaderboard.module.css";
 const LEADERBOARD_ID = "global_wins";
 const TOP_N = 10;
 
-/**
- * Leaderboard lists the top players by cumulative wins as a single
- * ranked list. Rank 1 gets a subtle accent wash so the leader reads at
- * a glance without requiring a podium — which looked lonely when the
- * board was sparse. Each row pairs the authoritative leaderboard
- * record with the owner's public stats row in a single batched storage
- * read, so page load stays O(1) in round trips regardless of list size.
- *
- * Empty state: a fresh server with zero finished matches shows a soft
- * "be the first" message rather than an empty list.
- */
 export default function Leaderboard() {
   const { client, session, status, reconnectGeneration } = useNakama();
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
@@ -37,7 +26,7 @@ export default function Leaderboard() {
       const list = await client.listLeaderboardRecords(
         session,
         LEADERBOARD_ID,
-        /*ownerIds*/ undefined,
+        undefined,
         TOP_N,
       );
       const records = list.records ?? [];
@@ -46,9 +35,8 @@ export default function Leaderboard() {
         return;
       }
 
-      // Pair each record with its stats row. Storage reads of a public row
-      // (permission_read=2) don't require ownership, so this single batched
-      // request hydrates every row in the list.
+      // Stats rows are public (permission_read=2), so one batched read
+      // hydrates every player's streak/per-mode numbers in a single round trip.
       const objectIds = records
         .map((r) => r.owner_id)
         .filter((id): id is string => Boolean(id))
@@ -62,8 +50,6 @@ export default function Leaderboard() {
         const statsResp = await client.readStorageObjects(session, {
           object_ids: objectIds,
         });
-        // nakama-js hydrates `value` directly into an object (not a JSON
-        // string), so no parse step is required here.
         for (const obj of statsResp.objects ?? []) {
           if (!obj.user_id || !obj.value) continue;
           statsByOwner.set(obj.user_id, obj.value as StatsSummary);
@@ -87,8 +73,7 @@ export default function Leaderboard() {
     }
   }, [client, session]);
 
-  // Initial load and refetch after every reconnect. Keeps the view live
-  // after a laptop wakes from sleep without a manual refresh.
+  // Refetch on reconnect so a laptop waking from sleep doesn't show stale ranks.
   useEffect(() => {
     if (status !== "ready") return;
     void load();
@@ -128,8 +113,6 @@ export default function Leaderboard() {
     </main>
   );
 }
-
-/* ------------------------------------------------------------------ */
 
 function RankList({
   entries,
@@ -243,12 +226,7 @@ function EmptyState() {
   );
 }
 
-/**
- * Fallback when a leaderboard record has no username (shouldn't happen
- * in practice because Nakama auto-snapshots it on write, but defensive
- * against future seeding / migration). Shows a short prefix rather than
- * a full userId so the row still reads naturally.
- */
+// Fallback for records that somehow lost their username snapshot.
 function shortenId(id: string | undefined): string {
   if (!id) return "Anonymous";
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;

@@ -13,11 +13,6 @@ interface SectionHeadProps {
   className?: string;
 }
 
-/**
- * Editorial section head: tiny Roman numeral in mono caps, an eyebrow
- * label, optional display title, optional hairline rule underneath.
- * Drops in wherever a page section used to hand-roll its own eyebrow.
- */
 export function SectionHead({
   numeral,
   eyebrow,

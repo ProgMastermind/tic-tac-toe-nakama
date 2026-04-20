@@ -11,12 +11,6 @@ interface BoardProps {
   onPlay(index: number): void;
 }
 
-/**
- * Board renders the 3x3 grid and the winning-line overlay. Interactivity
- * is driven externally — the Game page computes whether it's this
- * player's turn and passes `interactive` through. The board does not
- * guess the rules.
- */
 export function Board({ state, interactive, onPlay }: BoardProps) {
   const winningSet = useMemo(() => new Set(state.winningLine ?? []), [state.winningLine]);
 
@@ -41,11 +35,6 @@ export function Board({ state, interactive, onPlay }: BoardProps) {
   );
 }
 
-/**
- * WinningLineOverlay draws a single stroke from the first cell of the
- * winning line to the last, through the centre of each. Coordinates are
- * percentages so the SVG scales with the board.
- */
 function WinningLineOverlay({ line }: { line: [number, number, number] }) {
   const [from, , to] = line;
   const start = cellCenter(from);
@@ -61,9 +50,6 @@ function WinningLineOverlay({ line }: { line: [number, number, number] }) {
   );
 }
 
-// Centre of a cell on a 0..100 viewbox. Cells are laid out row-major
-// with some padding; we approximate with equal thirds because the
-// winning line sits on top of the grid, not inside it.
 function cellCenter(index: number): { x: number; y: number } {
   const col = index % 3;
   const row = Math.floor(index / 3);

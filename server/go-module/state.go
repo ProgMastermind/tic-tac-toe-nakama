@@ -8,43 +8,14 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
-// -----------------------------------------------------------------------------
-// Wire protocol.
-//
-// Opcodes travel in the `op_code` field of every match data message. Keep the
-// numeric values stable — they are public protocol between client and server.
-// -----------------------------------------------------------------------------
-
+// Opcodes are public wire protocol — don't renumber.
 const (
-	// OpMove is sent by a client to place their mark in a cell. Payload is
-	// JSON: {"cell": 0-8}. Server validates and either applies it and
-	// broadcasts a state update, or echoes an error only to the sender.
-	OpMove int64 = 1
-
-	// OpStateUpdate is the server's authoritative snapshot of the match as
-	// it is visible to both players. Clients render directly from it and do
-	// not derive any game-ending conditions locally.
+	OpMove        int64 = 1
 	OpStateUpdate int64 = 2
-
-	// OpMatchEnded is broadcast once the match reaches a terminal state.
-	// The payload carries the finish reason and the winner (if any) so
-	// clients can drive post-match UI without re-deriving it from state.
-	OpMatchEnded int64 = 3
-
-	// OpRematch is a client request for a rematch. Placeholder for a later
-	// milestone — handler does not yet act on it.
-	OpRematch int64 = 4
-
-	// OpError is sent to a single offending client when its message fails
-	// validation. It is never broadcast to both players because a peer
-	// should not be able to observe the other player's mis-inputs.
-	OpError int64 = 5
+	OpMatchEnded  int64 = 3
+	OpRematch     int64 = 4 // placeholder; not yet handled
+	OpError       int64 = 5
 )
-
-// -----------------------------------------------------------------------------
-// Enumerations. Use typed strings rather than magic literals everywhere in
-// the handler so a typo fails at compile time.
-// -----------------------------------------------------------------------------
 
 const (
 	StatusWaiting  = "waiting"
@@ -64,115 +35,68 @@ const (
 	WinReasonAbandoned = "abandoned"
 )
 
-// TurnSeconds is the per-turn time limit enforced in timed mode. A fixed
-// constant keeps the contract obvious; if we ever expose this as a knob it
-// should become a field on MatchState populated from match create params.
 const TurnSeconds = 30
 
-// JoinDeadlineSeconds is how long a match waits in the waiting state for
-// both players to actually attach. Sized for the real human-in-the-loop
-// flow of a private room: creator opens room → copies 4-char code →
-// pastes it into a chat/email/whatever → friend reads, opens the app,
-// types the code, clicks Join. 15s was fine for automated testing; 120s
-// is right for real sharing. An orphaned waiting match is cheap in
-// memory, so the generous window costs nothing.
-//
-// For the matchmaker flow in M2 the effective wait will be much shorter
-// anyway — matched clients attach immediately on notification.
+// 120s allows the real private-room flow (creator copies code → shares → friend
+// opens app → types code → joins). Orphan waiting matches are cheap.
 const JoinDeadlineSeconds = 120
 
-// DisconnectGraceSeconds is the window a dropped player has to reconnect
-// before the match is forfeited in their opponent's favour.
 const DisconnectGraceSeconds = 20
 
-// TickRate is how many times per second MatchLoop runs. 20Hz gives ~50ms
-// worst-case latency on move propagation (messages queue between ticks),
-// which is below the human "instant" threshold. Our loop does O(1) work
-// per tick so the CPU cost is negligible at any realistic match count.
+// 20Hz → ~50ms worst-case move latency, below the human "instant" threshold.
 const TickRate = 20
 
-// EmptyMatchSeconds is the wall-clock window a finished match stays alive
-// with zero attached presences before Nakama tears it down. Expressed in
-// seconds so a future TickRate change doesn't silently retune the timeout.
+// Seconds-based so a future TickRate change doesn't silently retune the timeout.
 const EmptyMatchSeconds = 30
-
-// EmptyMatchTicks is EmptyMatchSeconds translated into MatchLoop iterations.
 const EmptyMatchTicks = EmptyMatchSeconds * TickRate
 
-// -----------------------------------------------------------------------------
-// Match state. This is the authoritative server-side representation. Only a
-// projection of it (see PublicState) is broadcast to clients.
-// -----------------------------------------------------------------------------
-
-// MatchState is held in memory by the Nakama runtime for the lifetime of a
-// single match and passed to every handler callback. Field names are stable
-// because Nakama treats the state as an opaque interface{} and we round-trip
-// it through type assertions.
+// Authoritative server state for one match. Nakama threads it through every
+// handler callback as an opaque interface{}, so field names must stay stable.
 type MatchState struct {
-	// MatchID is populated in MatchInit from the context so handlers can
-	// reference the match in storage writes and logs without threading it
-	// through every call.
 	MatchID string
+	Mode    string
 
-	Mode string // ModeClassic | ModeTimed
-
-	// Code is the private-room share code, if this match was opened via
-	// create_private_match. Empty for matches created by the matchmaker
-	// hook. Round-tripped through the match label so MatchList lookups by
-	// code work end-to-end.
+	// Private-room share code, round-tripped through the label for MatchList lookup.
 	Code string
 
-	// Creator is the userId who opened a private room, surfaced on the
-	// label so the join RPC can reject a caller trying to join their own
-	// room (symptom of two browser tabs sharing a localStorage device id).
+	// Creator userId — surfaced on the label so join_private_match can
+	// reject self-join from two tabs sharing a device id.
 	Creator string
 
-	// Board is row-major — indices 0..2 top, 3..5 middle, 6..8 bottom.
 	Board [9]string
 
-	// Mark bookkeeping. Two maps rather than one indirection; the handler
-	// reads both directions frequently and the cost of keeping them in
-	// sync is local to MatchJoin.
-	MarkByUserID map[string]string // userId -> "X"|"O"
-	UserIDByMark map[string]string // "X"|"O" -> userId
+	// Both directions kept in sync — the handler reads both frequently.
+	MarkByUserID map[string]string
+	UserIDByMark map[string]string
 
-	// Usernames snapshotted at join time — convenient for leaderboard writes
-	// in MatchTerminate without having to pull the account again.
-	Usernames map[string]string // userId -> username
+	// Snapshotted at join time so leaderboard writes don't need another account fetch.
+	Usernames map[string]string
 
-	TurnMark   string // "X" | "O"
+	TurnMark   string
 	MovesCount int
-	Status     string // StatusWaiting | StatusPlaying | StatusFinished
+	Status     string
 
-	Winner      string // winning userId, empty on draw/abandoned
-	WinReason   string // WinReason*
-	WinningLine []int  // board indices forming the winning line, or nil
+	Winner      string
+	WinReason   string
+	WinningLine []int
 
-	// Presences is keyed by userId so reconnects replace rather than
-	// duplicate. SessionId reuse on reconnect is not guaranteed.
+	// Keyed by userId (not sessionId) so reconnects replace rather than duplicate.
 	Presences map[string]runtime.Presence
 
-	// ExpectedUsers is the list of userIds the matchmaker paired — used by
-	// MatchJoinAttempt to accept only the intended players into public
-	// matches. Empty for private (code-based) rooms.
+	// Populated for matchmaker matches, empty for private rooms.
 	ExpectedUsers []string
 
-	JoinDeadlineMs int64            // set in MatchInit, checked in MatchLoop
-	TurnDeadlineMs int64            // ModeTimed only
-	DisconnectAtMs map[string]int64 // userId -> unix ms of last observed leave
+	JoinDeadlineMs int64
+	TurnDeadlineMs int64
+	DisconnectAtMs map[string]int64
 
-	// StatsWritten guards against double-counting a match into the
-	// leaderboard. MatchLoop writes on transition to finished; MatchTerminate
-	// writes only if this is still false (covers crash paths).
+	// Guards against double-writing stats: MatchLoop writes on finish,
+	// MatchTerminate is a fallback for crash paths.
 	StatsWritten bool
 
-	// EmptyTicks counts consecutive ticks where no presences are attached.
 	EmptyTicks int
 }
 
-// NewMatchState returns a fully-initialised state with all maps allocated.
-// Using a constructor keeps MatchInit short and ensures every field has a
-// zero value that is safe to dereference.
 func NewMatchState(matchID, mode string, expectedUsers []string) *MatchState {
 	return &MatchState{
 		MatchID:        matchID,
@@ -189,27 +113,14 @@ func NewMatchState(matchID, mode string, expectedUsers []string) *MatchState {
 	}
 }
 
-// -----------------------------------------------------------------------------
-// Match label. Used by MatchList queries (for private room code lookup) and
-// as a discovery hint in the Nakama developer console.
-// -----------------------------------------------------------------------------
-
-// MatchLabel is written as the match's label JSON. Field names are camelCase
-// so Nakama's label query language (`+label.code:ABCD`) reads naturally on
-// the client.
+// Used by MatchList (`+label.code:ABCD`) and visible in the Nakama console.
 type MatchLabel struct {
-	Mode string `json:"mode"`
-	Code string `json:"code,omitempty"` // 4-char private room code, empty for public matches
-	// Creator userId of the player who opened the room. Exposed in the
-	// label so the join RPC can refuse a caller trying to join their own
-	// room (typically caused by two tabs sharing a localStorage device id).
+	Mode    string `json:"mode"`
+	Code    string `json:"code,omitempty"`
 	Creator string `json:"creator,omitempty"`
-	Open    bool   `json:"open"` // false once two players have joined
+	Open    bool   `json:"open"`
 }
 
-// Encode marshals the label for MatchDispatcher.MatchLabelUpdate. A non-nil
-// error is only ever from a programmer mistake (map-typed state, etc.) so we
-// return it rather than swallowing it.
 func (l MatchLabel) Encode() (string, error) {
 	b, err := json.Marshal(l)
 	if err != nil {
@@ -218,15 +129,8 @@ func (l MatchLabel) Encode() (string, error) {
 	return string(b), nil
 }
 
-// -----------------------------------------------------------------------------
-// Public state. This is the client-facing projection broadcast on OpStateUpdate.
-// Anything that would leak server-only bookkeeping (e.g. disconnect timers)
-// stays out of it.
-// -----------------------------------------------------------------------------
-
-// PublicState mirrors the fields the UI needs and no others. The omitempty
-// tags keep the wire payload small — 90% of ticks during a game send a 200
-// byte message.
+// Client-facing projection broadcast on OpStateUpdate. Server-only bookkeeping
+// (disconnect timers, expected users) is deliberately excluded.
 type PublicState struct {
 	MatchID      string            `json:"matchId"`
 	Mode         string            `json:"mode"`
@@ -240,12 +144,10 @@ type PublicState struct {
 	Winner       string            `json:"winner,omitempty"`
 	WinReason    string            `json:"winReason,omitempty"`
 	WinningLine  []int             `json:"winningLine,omitempty"`
-	TurnDeadline int64             `json:"turnDeadlineMs,omitempty"` // unix ms, timed mode only
-	ServerTimeMs int64             `json:"serverTimeMs"`             // used by client to align its clock
+	TurnDeadline int64             `json:"turnDeadlineMs,omitempty"`
+	ServerTimeMs int64             `json:"serverTimeMs"`
 }
 
-// Project copies the broadcast-safe subset of the match state. Called once
-// per state change so allocations are deliberately kept shallow.
 func (s *MatchState) Project(serverTimeMs int64) PublicState {
 	return PublicState{
 		MatchID:      s.MatchID,
@@ -265,30 +167,22 @@ func (s *MatchState) Project(serverTimeMs int64) PublicState {
 	}
 }
 
-// -----------------------------------------------------------------------------
-// Move decoding and validation. Pure functions so they are trivially testable.
-// -----------------------------------------------------------------------------
-
-// MoveMessage is the JSON payload clients send on OpMove.
 type MoveMessage struct {
 	Cell int `json:"cell"`
 }
 
-// MatchEndedMessage is the payload broadcast on OpMatchEnded.
 type MatchEndedMessage struct {
 	Reason      string `json:"reason"`
 	Winner      string `json:"winner,omitempty"`
 	WinningLine []int  `json:"winningLine,omitempty"`
 }
 
-// ErrorMessage is the payload sent to a single client on OpError.
 type ErrorMessage struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-// Sentinel errors for move validation. The handler inspects them to decide
-// which OpError code to send back to the client.
+// Sentinels — the handler maps these to OpError codes via validationCode().
 var (
 	ErrNotPlaying    = errors.New("match is not currently playing")
 	ErrNotYourTurn   = errors.New("it is not your turn")
@@ -298,10 +192,7 @@ var (
 	ErrBadPayload    = errors.New("malformed move payload")
 )
 
-// ValidateMove checks that the sender may legally play the supplied cell.
-// It does NOT mutate state — callers that pass validation should separately
-// call ApplyMove. Splitting these steps keeps the validation easy to reason
-// about and test in isolation.
+// Pure — does NOT mutate state. Callers call ApplyMove separately on success.
 func ValidateMove(s *MatchState, senderUserID string, cell int) error {
 	if s.Status != StatusPlaying {
 		return ErrNotPlaying
@@ -322,13 +213,7 @@ func ValidateMove(s *MatchState, senderUserID string, cell int) error {
 	return nil
 }
 
-// ApplyMove mutates state in place after a successful ValidateMove. It sets
-// the cell, increments the move count, evaluates end conditions, and either
-// flips the turn or transitions to finished.
-//
-// Returns (finished, winReason). finished is true when the match reaches a
-// terminal state as a result of this move, in which case s.Winner and
-// s.WinningLine are populated.
+// Mutates state. Caller is responsible for resetting TurnDeadlineMs after.
 func ApplyMove(s *MatchState, cell int) (finished bool, winReason string) {
 	s.Board[cell] = s.TurnMark
 	s.MovesCount++
@@ -343,11 +228,9 @@ func ApplyMove(s *MatchState, cell int) (finished bool, winReason string) {
 	if s.MovesCount == 9 {
 		s.Status = StatusFinished
 		s.WinReason = WinReasonDraw
-		s.Winner = "" // draw
+		s.Winner = ""
 		return true, WinReasonDraw
 	}
-	// Flip turn. No timer reset here — the handler owns that so it can
-	// use the same timestamp it's using for the state update broadcast.
 	if s.TurnMark == MarkX {
 		s.TurnMark = MarkO
 	} else {
@@ -356,17 +239,13 @@ func ApplyMove(s *MatchState, cell int) (finished bool, winReason string) {
 	return false, ""
 }
 
-// winLines enumerates the 8 possible three-in-a-row positions on the board.
-// Package-level so CheckWinner does not re-allocate per call.
+// Package-level so CheckWinner doesn't re-allocate per call.
 var winLines = [8][3]int{
-	{0, 1, 2}, {3, 4, 5}, {6, 7, 8}, // rows
-	{0, 3, 6}, {1, 4, 7}, {2, 5, 8}, // columns
-	{0, 4, 8}, {2, 4, 6}, // diagonals
+	{0, 1, 2}, {3, 4, 5}, {6, 7, 8},
+	{0, 3, 6}, {1, 4, 7}, {2, 5, 8},
+	{0, 4, 8}, {2, 4, 6},
 }
 
-// CheckWinner scans for three identical non-empty marks on any line. Returns
-// the winning mark, the three board indices that form the line (for UI
-// highlighting), and true on a win. Otherwise returns ("", nil, false).
 func CheckWinner(board [9]string) (mark string, line []int, ok bool) {
 	for _, l := range winLines {
 		a := board[l[0]]
