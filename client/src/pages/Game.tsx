@@ -33,18 +33,9 @@ export default function Game() {
 
   const [copied, setCopied] = useState(false);
 
+  // Carry the just-played mode back as a URL hint so Home preselects
+  // the toggle — saves the user a click if they want to queue again.
   const onBackToLobby = useCallback(async () => {
-    try {
-      await leave();
-    } finally {
-      navigate("/");
-    }
-  }, [leave, navigate]);
-
-  // "Play again" keeps the current mode — the Home page reads `?mode=`
-  // and pre-selects it so the user lands one click away from queueing
-  // another round of what they were already playing.
-  const onPlayAgain = useCallback(async () => {
     try {
       await leave();
     } finally {
@@ -230,7 +221,6 @@ export default function Game() {
             end={endReason}
             myUserId={myUserId}
             onBackToLobby={onBackToLobby}
-            onPlayAgain={onPlayAgain}
           />
         ) : null}
       </motion.section>

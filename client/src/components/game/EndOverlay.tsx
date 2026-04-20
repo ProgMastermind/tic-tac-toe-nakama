@@ -12,7 +12,6 @@ interface EndOverlayProps {
   end: MatchEndedMessage;
   myUserId: string | null;
   onBackToLobby(): void;
-  onPlayAgain?(): void;
 }
 
 /**
@@ -27,7 +26,6 @@ export function EndOverlay({
   end,
   myUserId,
   onBackToLobby,
-  onPlayAgain,
 }: EndOverlayProps) {
   const { stats, refresh } = useStats();
   const winnerUserId = end.winner ?? state.winner ?? "";
@@ -100,16 +98,7 @@ export function EndOverlay({
         </dl>
 
         <div className={styles.actions}>
-          {onPlayAgain ? (
-            <Button onClick={onPlayAgain} size="md">
-              Play again
-            </Button>
-          ) : null}
-          <Button
-            onClick={onBackToLobby}
-            size="md"
-            variant={onPlayAgain ? "secondary" : "primary"}
-          >
+          <Button onClick={onBackToLobby} size="md">
             Back to lobby
           </Button>
         </div>
