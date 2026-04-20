@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { Wordmark } from "@/components/brand/Wordmark";
 import { Button } from "@/components/ui/Button";
 import { ModeToggle } from "@/components/ui/ModeToggle";
+import { Rule } from "@/components/ui/Rule";
+import { SectionHead } from "@/components/ui/SectionHead";
 import { TextInput } from "@/components/ui/TextInput";
 import { useNakama } from "@/context/NakamaProvider";
 import { useStats } from "@/hooks/useStats";
@@ -32,6 +35,7 @@ export default function Home() {
     client,
     session,
     socket,
+    status,
     displayName,
     setDisplayName,
     registerMatchmakerMatchedHandler,
@@ -185,136 +189,156 @@ export default function Home() {
     [client, session, code, navigate],
   );
 
+  const connected = status === "ready";
+
   return (
     <main className={`app-shell ${styles.screen}`}>
-      <header className={styles.masthead}>
-        <span className={`eyebrow ${styles.eyebrow}`}>
-          <span className={styles.eyebrowDot} aria-hidden />
-          A classic, reimagined
-        </span>
-        <h1 className={styles.title}>
-          Tic tac toe,
-          <br />
-          <span className={styles.titleItalic}>played properly.</span>
-        </h1>
-        <p className={styles.subtitle}>
-          A two-player board built on a server-authoritative backend. Every
-          move is validated on Nakama before the board updates — no turns
-          stolen, no cells overwritten, no ghosts on the wire.
-        </p>
-        <DisplayNameStrip
-          displayName={displayName}
-          onSave={setDisplayName}
-        />
-        <StatsStrip stats={stats} />
-      </header>
-
-      <section className={styles.card} aria-label="Start playing">
-        <div className={styles.cardHead}>
-          <h2 className={styles.cardTitle}>Start a game</h2>
-          <p className={styles.cardLead}>
-            Pick a mode and find an opponent — or spin up a private room
-            to play with a specific friend.
-          </p>
+      <div className={styles.brandbar}>
+        <Wordmark size="md" />
+        <div className={styles.brandbarMeta}>
+          <DisplayNameStrip displayName={displayName} onSave={setDisplayName} />
+          <span className={styles.connectedDot}>
+            <span className={styles.connectedDotMark} aria-hidden />
+            {connected ? "connected" : "connecting…"}
+          </span>
         </div>
+      </div>
 
-        <ModeToggle value={mode} onChange={setMode} disabled={anyBusy} />
+      <Rule />
 
-        {searching ? (
-          <div className={styles.searching} role="status" aria-live="polite">
-            <span className={styles.searchingDot} aria-hidden />
-            <span className={styles.searchingText}>
-              <span className={styles.searchingTitle}>
-                Finding a {mode} opponent…
+      <div className={styles.layout}>
+        <header className={styles.masthead}>
+          <SectionHead numeral="I" eyebrow="A classic, reimagined" />
+          <h1 className={styles.title}>
+            Tic tac toe,
+            <br />
+            <span className={styles.titleItalic}>played properly.</span>
+          </h1>
+          <p className={`${styles.subtitle} dropCap`}>
+            A two-player board built on a server-authoritative backend. Every
+            move is validated on Nakama before the board updates — no turns
+            stolen, no cells overwritten, no ghosts on the wire.
+          </p>
+        </header>
+
+        <section className={styles.card} aria-label="Start playing">
+          <SectionHead
+            numeral="II"
+            eyebrow="Start a game"
+            title="Pick a mode"
+          />
+          <p className={styles.cardLead}>
+            Classic is turn-based. Timed adds a 30-second clock per move —
+            dawdle and the server hands the board to your opponent.
+          </p>
+
+          <ModeToggle value={mode} onChange={setMode} disabled={anyBusy} />
+
+          {searching ? (
+            <div className={styles.searching} role="status" aria-live="polite">
+              <span className={styles.searchingDot} aria-hidden />
+              <span className={styles.searchingText}>
+                <span className={styles.searchingTitle}>
+                  Finding a {mode} opponent…
+                </span>
+                <span className={styles.searchingSub}>
+                  Matchmaker is live. You&rsquo;ll be dropped in automatically.
+                </span>
               </span>
-              <span className={styles.searchingSub}>
-                Matchmaker is live. You&rsquo;ll be dropped in automatically.
-              </span>
-            </span>
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={handleCancelMatchmaking}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
             <Button
-              variant="ghost"
-              size="md"
-              onClick={handleCancelMatchmaking}
+              size="lg"
+              block
+              onClick={handleFindMatch}
+              loading={matchmaking}
+              disabled={!socket || !session || anyBusy}
             >
-              Cancel
+              Find a match
             </Button>
-          </div>
-        ) : (
+          )}
+
+          {lobbyError ? (
+            <p role="alert" className={styles.cardError}>
+              {lobbyError}
+            </p>
+          ) : null}
+
+          <Rule label="or play with a friend" />
+
           <Button
+            variant="secondary"
             size="lg"
             block
-            onClick={handleFindMatch}
-            loading={matchmaking}
-            disabled={!socket || !session || anyBusy}
+            onClick={handleCreate}
+            loading={creating}
+            disabled={!session || joining || searching || matchmaking}
           >
-            Find a match
+            Create a private room
           </Button>
-        )}
 
-        {lobbyError ? (
-          <p role="alert" className={styles.cardError}>
-            {lobbyError}
-          </p>
-        ) : null}
+          <form onSubmit={handleJoin} noValidate>
+            <div className={styles.joinRow}>
+              <TextInput
+                mono
+                label="Join with a code"
+                placeholder="ABCD"
+                maxLength={4}
+                value={code}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  setCodeError(null);
+                }}
+                error={codeError}
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+              />
+              <Button
+                variant="secondary"
+                size="lg"
+                type="submit"
+                loading={joining}
+                disabled={
+                  !session ||
+                  creating ||
+                  searching ||
+                  matchmaking ||
+                  code.trim().length !== 4
+                }
+              >
+                Join
+              </Button>
+            </div>
+          </form>
+        </section>
 
-        <div className={styles.divider}>or play with a friend</div>
-
-        <Button
-          variant="secondary"
-          size="lg"
-          block
-          onClick={handleCreate}
-          loading={creating}
-          disabled={!session || joining || searching || matchmaking}
-        >
-          Create a private room
-        </Button>
-
-        <form onSubmit={handleJoin} noValidate>
-          <div className={styles.joinRow}>
-            <TextInput
-              mono
-              label="Join with a code"
-              placeholder="ABCD"
-              maxLength={4}
-              value={code}
-              onChange={(e) => {
-                setCode(e.target.value);
-                setCodeError(null);
-              }}
-              error={codeError}
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-            />
-            <Button
-              variant="secondary"
-              size="lg"
-              type="submit"
-              loading={joining}
-              disabled={
-                !session ||
-                creating ||
-                searching ||
-                matchmaking ||
-                code.trim().length !== 4
-              }
-            >
-              Join
-            </Button>
-          </div>
-        </form>
-      </section>
+        <RecordCard stats={stats} />
+      </div>
 
       <footer className={styles.footer}>
-        <span>© Tic Tac Toe · Nakama authoritative backend</span>
-        <Link to="/leaderboard" className={styles.footerLink}>
-          Leaderboard →
-        </Link>
-        <span className={styles.statusDot}>
-          <span className={styles.statusDotMark} aria-hidden />
-          connected
-        </span>
+        <Wordmark size="sm" />
+        <nav className={styles.footerNav} aria-label="Secondary">
+          <Link to="/leaderboard" className={styles.footerLink}>
+            Leaderboard →
+          </Link>
+          <a
+            className={styles.footerLink}
+            href="https://github.com/ProgMastermind"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+        </nav>
+        <span>© Tic Tac Toe · Nakama</span>
       </footer>
     </main>
   );
@@ -401,37 +425,62 @@ function DisplayNameStrip({
 }
 
 /**
- * StatsStrip surfaces the signed-in user's match record right below the
- * display-name tag. A first-time player sees zeros — that's intentional,
- * it reads as an invitation rather than a gate.
- *
- * Streak is highlighted only when it's actually alive (>0) so the strip
- * doesn't misrepresent a cold start as a fresh streak.
+ * RecordCard replaces the old flat stats strip. Three column-blocks —
+ * totals, streak, and mode split — separated by hairlines on desktop and
+ * stacked with top-borders on mobile. Streak is accent-coloured only
+ * while it's actually alive (>0) so the strip doesn't misrepresent a
+ * cold start as a fresh streak. A "Streak live" chip surfaces the same
+ * state at the card header for a second visual read.
  */
-function StatsStrip({ stats }: { stats: StatsSummary }) {
-  const items: Array<{ label: string; value: string; emphasized?: boolean }> = [
-    { label: "Wins", value: String(stats.wins) },
-    { label: "Losses", value: String(stats.losses) },
-    { label: "Draws", value: String(stats.draws) },
-    {
-      label: "Streak",
-      value: String(stats.currentStreak),
-      emphasized: stats.currentStreak > 0,
-    },
-    { label: "Best", value: String(stats.bestStreak) },
-  ];
+function RecordCard({ stats }: { stats: StatsSummary }) {
+  const streakAlive = stats.currentStreak > 0;
   return (
-    <dl className={styles.stats} aria-label="Your record">
-      {items.map((it) => (
-        <div
-          key={it.label}
-          className={`${styles.statItem} ${it.emphasized ? styles.statItemEmph : ""}`}
-        >
-          <dt className={styles.statLabel}>{it.label}</dt>
-          <dd className={styles.statValue}>{it.value}</dd>
+    <aside className={styles.record} aria-label="Your record">
+      <header className={styles.recordHead}>
+        <span className={styles.recordEyebrow}>Your record</span>
+        {streakAlive ? (
+          <span className={styles.recordFlame}>
+            <span className={styles.recordFlameDot} aria-hidden />
+            Streak live
+          </span>
+        ) : null}
+      </header>
+      <div className={styles.recordGrid}>
+        <div className={styles.recordCell}>
+          <span className={styles.recordLabel}>Totals</span>
+          <div className={styles.recordNumRow}>
+            <span className={styles.recordNumStrong}>{stats.wins}</span>
+            <span className={styles.recordNumSep}>·</span>
+            <span className={styles.recordNum}>{stats.losses}</span>
+            <span className={styles.recordNumSep}>·</span>
+            <span className={styles.recordNum}>{stats.draws}</span>
+          </div>
+          <span className={styles.recordSubLabel}>wins · losses · draws</span>
         </div>
-      ))}
-    </dl>
+        <div className={styles.recordCell}>
+          <span className={styles.recordLabel}>Streak</span>
+          <div className={styles.recordNumRow}>
+            <span
+              className={`${styles.recordNumStrong} ${streakAlive ? styles.recordNumAccent : ""}`}
+            >
+              {stats.currentStreak}
+            </span>
+            <span className={styles.recordNumSep}>/</span>
+            <span className={styles.recordNum}>{stats.bestStreak}</span>
+          </div>
+          <span className={styles.recordSubLabel}>current · best</span>
+        </div>
+        <div className={styles.recordCell}>
+          <span className={styles.recordLabel}>By mode</span>
+          <div className={styles.recordNumRow}>
+            <span className={styles.recordNumStrong}>{stats.classicWins}</span>
+            <span className={styles.recordNumSep}>/</span>
+            <span className={styles.recordNum}>{stats.timedWins}</span>
+          </div>
+          <span className={styles.recordSubLabel}>classic · timed</span>
+        </div>
+      </div>
+    </aside>
   );
 }
 

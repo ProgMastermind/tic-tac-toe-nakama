@@ -1,40 +1,62 @@
 /*
- * Home screen. Two regions: a masthead stating what the product is, and
- * an action column where the player picks how to play.
- *
- * Mobile-first: single column, action card is bottom-stuck for thumb
- * reach. At >=860px it becomes a two-column editorial layout with the
- * card sticky so the brand copy can breathe.
+ * Home screen. Three regions on desktop: a brand bar that spans the full
+ * width, an editorial column with the masthead + your-record card on the
+ * left, and a sticky action card on the right. Mobile collapses to a
+ * single column with the brand bar, masthead, action card, record, and
+ * footer stacked in reading order.
  */
 
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
-  padding-block: var(--space-6) var(--space-8);
+  gap: var(--space-6);
+  padding-block: var(--space-5) var(--space-8);
   flex: 1;
 }
+
+/* ---- Brand bar ----------------------------------------------------- */
+
+.brandbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.brandbarMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-subtle);
+}
+
+.connectedDot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-muted);
+  font-family: var(--font-body);
+  letter-spacing: var(--letter-wide);
+}
+
+.connectedDotMark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: breathe 2400ms var(--ease-out) infinite;
+}
+
+/* ---- Masthead ------------------------------------------------------ */
 
 .masthead {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 44ch;
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-ink-muted);
-}
-
-.eyebrowDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  max-width: 46ch;
 }
 
 .title {
@@ -43,6 +65,7 @@
   font-weight: 500;
   letter-spacing: var(--letter-tight);
   line-height: var(--line-tight);
+  color: var(--color-ink);
 }
 
 .titleItalic {
@@ -53,9 +76,11 @@
 .subtitle {
   color: var(--color-ink-muted);
   font-size: var(--font-size-md);
-  max-width: 44ch;
+  max-width: 46ch;
   line-height: var(--line-normal);
 }
+
+/* ---- Display-name strip ------------------------------------------- */
 
 .mastheadMeta {
   display: flex;
@@ -64,7 +89,6 @@
   font-size: var(--font-size-xs);
   color: var(--color-ink-subtle);
   font-family: var(--font-mono);
-  margin-top: var(--space-2);
 }
 
 .mastheadMetaEdit {
@@ -82,41 +106,132 @@
   color: var(--color-ink);
 }
 
-/* ---- Stats strip --------------------------------------------------- */
-
-.stats {
+.nameForm {
   display: flex;
-  gap: var(--space-5);
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-top: var(--space-2);
   flex-wrap: wrap;
 }
 
-.statItem {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 4ch;
+.nameForm > :first-child {
+  flex: 1;
+  min-width: 14ch;
 }
 
-.statLabel {
+/* ---- Record card --------------------------------------------------- */
+
+.record {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.recordHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.recordEyebrow {
   font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.recordFlame {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+}
+
+.recordFlameDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.recordGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.recordCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.recordCell:first-child {
+  padding-left: 0;
+  border-left: none;
+}
+
+.recordLabel {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
   letter-spacing: var(--letter-eyebrow);
   text-transform: uppercase;
   color: var(--color-ink-subtle);
 }
 
-.statValue {
+.recordNumRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   font-family: var(--font-mono);
-  font-size: var(--font-size-md);
-  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
-  margin: 0;
 }
 
-.statItemEmph .statValue {
+.recordNumStrong {
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.recordNumAccent {
   color: var(--color-accent);
+}
+
+.recordNum {
+  font-size: var(--font-size-lg);
+  color: var(--color-ink-muted);
+  line-height: 1;
+}
+
+.recordNumSep {
+  color: var(--color-ink-subtle);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+
+.recordSubLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono);
+  letter-spacing: var(--letter-wide);
 }
 
 /* ---- Action card --------------------------------------------------- */
@@ -128,45 +243,14 @@
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   box-shadow: var(--shadow-md);
-}
-
-.cardHead {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.cardTitle {
-  font-family: var(--font-display);
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-  letter-spacing: var(--letter-tight);
 }
 
 .cardLead {
   color: var(--color-ink-muted);
   line-height: var(--line-normal);
   font-size: var(--font-size-sm);
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  color: var(--color-ink-subtle);
-  font-size: var(--font-size-xs);
-  letter-spacing: var(--letter-eyebrow);
-  text-transform: uppercase;
-}
-
-.divider::before,
-.divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--color-border);
 }
 
 .joinRow {
@@ -228,28 +312,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .searchingDot {
+  .searchingDot,
+  .connectedDotMark {
     animation: none;
   }
-}
-
-/* ---- Name editor popover ------------------------------------------- */
-
-.nameForm {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-end;
-  margin-top: var(--space-2);
-}
-
-.nameForm > :first-child {
-  flex: 1;
 }
 
 /* ---- Footer -------------------------------------------------------- */
 
 .footer {
   margin-top: auto;
+  padding-top: var(--space-5);
   color: var(--color-ink-subtle);
   font-size: var(--font-size-xs);
   display: flex;
@@ -257,6 +330,13 @@
   align-items: center;
   gap: var(--space-4);
   font-family: var(--font-mono);
+  flex-wrap: wrap;
+  border-top: 1px solid var(--color-border);
+}
+
+.footerNav {
+  display: inline-flex;
+  gap: var(--space-5);
   flex-wrap: wrap;
 }
 
@@ -271,20 +351,6 @@
   color: var(--color-accent);
 }
 
-.statusDot {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.statusDotMark {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-success);
-  animation: breathe 2400ms var(--ease-out) infinite;
-}
-
 @keyframes breathe {
   0%, 100% {
     opacity: 1;
@@ -296,27 +362,48 @@
 
 /* ---- Responsive ---------------------------------------------------- */
 
+@media (max-width: 640px) {
+  .recordGrid {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .recordCell {
+    padding-left: 0;
+    padding-top: var(--space-3);
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+  }
+  .recordCell:first-child {
+    padding-top: 0;
+    border-top: none;
+  }
+  .title {
+    font-size: clamp(2.25rem, 12vw, 3.5rem);
+  }
+}
+
 @media (min-width: 860px) {
-  .screen {
+  .layout {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    grid-template-rows: 1fr auto;
-    gap: var(--space-8);
+    grid-template-rows: auto 1fr;
+    gap: var(--space-7);
     align-items: start;
   }
   .masthead {
     grid-column: 1;
     grid-row: 1;
-    padding-top: var(--space-6);
+    padding-top: var(--space-4);
+  }
+  .record {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
   }
   .card {
     grid-column: 2;
-    grid-row: 1;
+    grid-row: 1 / span 2;
     position: sticky;
     top: var(--space-6);
-  }
-  .footer {
-    grid-column: 1 / -1;
-    grid-row: 2;
   }
 }
