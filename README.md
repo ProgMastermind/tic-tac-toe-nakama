@@ -6,7 +6,7 @@ inside a Go match handler on a [Nakama](https://heroiclabs.com/nakama) server.
 The browser is a thin render layer driven by server broadcasts.
 
 > **Live:** client at `https://tic-tac-toe-nakama.vercel.app` · server at
-> `https://tic-tac-toe-nakama.herokuapp.com`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+> `https://tic-tac-toe-nakama-bd3383be1804.herokuapp.com`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 > for the full deploy walkthrough.
 
 ## Quick start (one command)
@@ -80,7 +80,7 @@ per-user stats are all live as of M3.
 | Backend  | Nakama 3.38 + Go 1.26 plugin (`.so`) match handler |
 | DB       | PostgreSQL 15                                     |
 | Infra    | Docker Compose (local), Heroku container dyno (prod) |
-| Hosting  | Vercel (client) + Heroku (server + Postgres Mini) |
+| Hosting  | Vercel (client) + Heroku (server + Postgres Essential-0) |
 
 ## Repository Layout
 
@@ -88,10 +88,11 @@ per-user stats are all live as of M3.
 client/                 React + Vite app
   src/
     context/            NakamaProvider (client, session, socket)
-    hooks/              useMatch, useNakama
-    pages/              Home, Game
-    components/         game/ (Board, Cell, Timer, PlayerBadge, EndOverlay)
-                        ui/   (Button, TextInput, ModeToggle)
+    hooks/              useMatch, useNakama, useStats
+    pages/              Home, Game, Leaderboard
+    components/         brand/ (Wordmark)
+                        game/  (Board, Cell, Timer, PlayerBadge, EndOverlay)
+                        ui/    (Button, TextInput, ModeToggle, SectionHead, Rule)
     styles/             tokens.css + globals.css (design system)
     types/              wire protocol (opcodes, state shape)
 
@@ -116,7 +117,8 @@ docs/
 
 - **Authoritative match handler in Go.** Every move is validated on the server
   in `ValidateMove` before `ApplyMove` mutates state. The client never
-  evaluates win/draw locally. 14-test Go suite covers every rule path.
+  evaluates win/draw locally. Go test suite (7 functions, 26 table-driven
+  cases) covers every rule path.
 - **Room code lives on the match label**, not a storage row — the code
   disappears automatically when the match ends. `MatchList` query on
   `+label.code:ABCD +label.open:true` resolves it back.

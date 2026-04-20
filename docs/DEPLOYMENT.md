@@ -5,7 +5,7 @@ production. The server runs on Heroku as a container dyno with a
 Heroku Postgres Essential-0 attached; the client ships as a static Vite
 bundle on Vercel.
 
-Runtime cost at the end: ~$12/month ($7 Basic dyno + $5 Postgres Mini,
+Runtime cost at the end: ~$12/month ($7 Basic dyno + $5 Postgres Essential-0,
 Vercel Hobby tier is free for personal projects).
 
 - **App name**: `tic-tac-toe-nakama`
@@ -99,7 +99,7 @@ Watch the build. Success looks like:
 Successfully built <hash>
 ...
 Released v3
-https://tic-tac-toe-nakama.herokuapp.com/ deployed to Heroku
+https://tic-tac-toe-nakama-bd3383be1804.herokuapp.com/ deployed to Heroku
 ```
 
 ### 2.5 Verify the server is up
@@ -110,13 +110,14 @@ heroku logs --tail --app tic-tac-toe-nakama
 
 Look for, in order:
 1. `Database migrations applied`
-2. `Registered match handler for 'tictactoe'`
-3. `Startup done`
+2. `tic-tac-toe module: loading (match="tictactoe")`
+3. `tic-tac-toe module: ready`
+4. `Startup done`
 
 Then in another terminal:
 
 ```sh
-curl https://tic-tac-toe-nakama.herokuapp.com/healthcheck
+curl https://tic-tac-toe-nakama-bd3383be1804.herokuapp.com/healthcheck
 # → {}
 ```
 
@@ -158,7 +159,7 @@ previews to talk to the same server):
 
 | Key | Value |
 |-----|-------|
-| `VITE_NAKAMA_HOST` | `tic-tac-toe-nakama.herokuapp.com` |
+| `VITE_NAKAMA_HOST` | `tic-tac-toe-nakama-bd3383be1804.herokuapp.com` |
 | `VITE_NAKAMA_PORT` | `443` |
 | `VITE_NAKAMA_USE_SSL` | `true` |
 | `VITE_NAKAMA_SERVER_KEY` | *(paste the `NAKAMA_SERVER_KEY` from 2.2 — same string)* |
@@ -243,7 +244,7 @@ heroku pg:backups:restore b<ID> DATABASE_URL --app tic-tac-toe-nakama
 | Resource | Tier | Cost |
 |----------|------|------|
 | Heroku web dyno | Basic | $7/mo |
-| Heroku Postgres | Mini | $5/mo |
+| Heroku Postgres | Essential-0 | $5/mo |
 | Vercel | Hobby | $0 |
 | **Total** | | **$12/mo** |
 
