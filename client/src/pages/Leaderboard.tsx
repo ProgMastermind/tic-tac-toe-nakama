@@ -3,8 +3,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
-import { Rule } from "@/components/ui/Rule";
-import { SectionHead } from "@/components/ui/SectionHead";
 import { useNakama } from "@/context/NakamaProvider";
 import type { LeaderboardEntry, StatsSummary } from "@/types/match";
 
@@ -14,16 +12,15 @@ const LEADERBOARD_ID = "global_wins";
 const TOP_N = 10;
 
 /**
- * Leaderboard lists the top players by cumulative wins. The top three
- * sit on a podium (rank 2 / rank 1 / rank 3 in silver-gold-bronze
- * arrangement), and ranks 4–10 fill a compact table below. Each row
- * pairs the authoritative leaderboard record (score = total wins, rank)
- * with the owner's public stats row (streak, per-mode split). The
- * pairing is a single batched storage read so page load stays O(1) in
- * round trips regardless of list size.
+ * Leaderboard lists the top players by cumulative wins as a single
+ * ranked list. Rank 1 gets a subtle accent wash so the leader reads at
+ * a glance without requiring a podium — which looked lonely when the
+ * board was sparse. Each row pairs the authoritative leaderboard
+ * record with the owner's public stats row in a single batched storage
+ * read, so page load stays O(1) in round trips regardless of list size.
  *
  * Empty state: a fresh server with zero finished matches shows a soft
- * "be the first" message rather than an empty table.
+ * "be the first" message rather than an empty list.
  */
 export default function Leaderboard() {
   const { client, session, status, reconnectGeneration } = useNakama();
@@ -97,13 +94,11 @@ export default function Leaderboard() {
     void load();
   }, [status, reconnectGeneration, load]);
 
-  const podium = entries ? entries.slice(0, 3) : [];
-  const rest = entries ? entries.slice(3) : [];
-
   return (
     <main className={`app-shell ${styles.screen}`}>
       <header className={styles.masthead}>
-        <SectionHead numeral="I" eyebrow="Top of the board" title="Leaderboard" />
+        <span className={styles.eyebrow}>Top of the board</span>
+        <h1 className={styles.title}>Leaderboard</h1>
         <p className={styles.subtitle}>
           The top players by cumulative wins. Draws don&rsquo;t count;
           streaks reset on a loss. Refreshes automatically whenever you
@@ -120,172 +115,94 @@ export default function Leaderboard() {
       </header>
 
       {error ? (
-        <section className={styles.card} aria-label="Top players">
-          <p role="alert" className={styles.stateMessage}>
-            {error}
-          </p>
-        </section>
+        <p role="alert" className={styles.stateMessage}>
+          {error}
+        </p>
       ) : entries === null ? (
-        <section className={styles.card} aria-label="Top players">
-          <p className={styles.stateMessage}>Loading the top ten…</p>
-        </section>
+        <p className={styles.stateMessage}>Loading the leaderboard…</p>
       ) : entries.length === 0 ? (
-        <section className={styles.card} aria-label="Top players">
-          <EmptyState />
-        </section>
+        <EmptyState />
       ) : (
-        <>
-          <Podium entries={podium} reduceMotion={!!reduceMotion} />
-          {rest.length > 0 ? (
-            <section className={styles.card} aria-label="Ranks four to ten">
-              <header className={styles.cardHead}>
-                <span className={styles.cardTitle}>The chasing pack</span>
-                <span className={styles.cardTail}>
-                  ranks 4–{3 + rest.length}
-                </span>
-              </header>
-              <Table rows={rest} />
-            </section>
-          ) : null}
-        </>
+        <RankList entries={entries} reduceMotion={!!reduceMotion} />
       )}
-
-      <Rule />
     </main>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-/**
- * Top-3 cards. Arranged silver-gold-bronze on desktop by placing rank 1
- * in the center column via the DOM order [2, 1, 3]. Stagger is ordered
- * smallest-first so the champion lands last and the eye comes to rest
- * on them.
- */
-function Podium({
+function RankList({
   entries,
   reduceMotion,
 }: {
   entries: LeaderboardEntry[];
   reduceMotion: boolean;
 }) {
-  const byRank = new Map<number, LeaderboardEntry>();
-  entries.forEach((e, idx) => byRank.set(e.rank ?? idx + 1, e));
-  const first = byRank.get(1) ?? entries[0];
-  const second = byRank.get(2) ?? entries[1];
-  const third = byRank.get(3) ?? entries[2];
-  const ordered: Array<[LeaderboardEntry | undefined, boolean, number]> = [
-    [second, false, 0.06],
-    [first, true, 0.18],
-    [third, false, 0.12],
-  ];
-
   return (
-    <div className={styles.podium}>
-      {ordered.map(([entry, isGold, delay], idx) =>
-        entry ? (
-          <PodiumCard
-            key={entry.ownerId || idx}
-            entry={entry}
-            gold={isGold}
-            delay={reduceMotion ? 0 : delay}
-          />
-        ) : (
-          <div key={idx} aria-hidden />
-        ),
-      )}
+    <div className={styles.list}>
+      {entries.map((entry, idx) => (
+        <RankRow
+          key={entry.ownerId || idx}
+          entry={entry}
+          index={idx}
+          reduceMotion={reduceMotion}
+        />
+      ))}
     </div>
   );
 }
 
-function PodiumCard({
+function RankRow({
   entry,
-  gold,
-  delay,
+  index,
+  reduceMotion,
 }: {
   entry: LeaderboardEntry;
-  gold: boolean;
-  delay: number;
+  index: number;
+  reduceMotion: boolean;
 }) {
-  const anim = {
-    initial: { opacity: 0, y: 12 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.32, delay, ease: [0.2, 0.8, 0.2, 1] as const },
-  };
-  return (
-    <motion.article
-      className={`${styles.podiumCard} ${gold ? styles.podiumGold : ""}`}
-      {...anim}
-    >
-      <span className={`${styles.podiumRank} ${gold ? styles.podiumRankGold : ""}`}>
-        {formatRank(entry.rank)}
-      </span>
-      <span
-        className={`${styles.podiumMonogram} ${gold ? styles.podiumMonogramGold : ""}`}
-        aria-hidden
-      >
-        {monogramOf(entry.username)}
-      </span>
-      <span className={styles.podiumName} title={entry.username}>
-        {entry.username}
-      </span>
-      <span className={styles.podiumWinsLabel}>Wins</span>
-      <span className={styles.podiumWins}>{entry.wins}</span>
-      <span className={styles.podiumStreak}>
-        streak {entry.stats?.currentStreak ?? 0} · best {entry.stats?.bestStreak ?? 0}
-      </span>
-    </motion.article>
-  );
-}
+  const isLeader = (entry.rank ?? index + 1) === 1;
+  const delay = reduceMotion ? 0 : Math.min(index * 0.04, 0.28);
 
-function Table({ rows }: { rows: LeaderboardEntry[] }) {
   return (
-    <table className={styles.table}>
-      <thead>
-        <tr>
-          <th scope="col" className={styles.rankCol}>
-            #
-          </th>
-          <th scope="col">Player</th>
-          <th scope="col" className={styles.numCol}>
-            Wins
-          </th>
-          <th scope="col" className={styles.numCol}>
-            Streak
-          </th>
-          <th scope="col" className={styles.numCol}>
-            Best
-          </th>
-          <th scope="col" className={styles.splitCol}>
-            Classic / Timed
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((entry) => (
-          <tr key={entry.ownerId} className={styles.row}>
-            <td className={styles.rank}>{entry.rank}</td>
-            <td>
-              <span className={styles.playerCell}>
-                <span className={styles.monogram} aria-hidden>
-                  {monogramOf(entry.username)}
-                </span>
-                <span className={styles.playerName}>{entry.username}</span>
-              </span>
-            </td>
-            <td className={`${styles.num} ${styles.numBold}`}>{entry.wins}</td>
-            <td className={styles.num}>{entry.stats?.currentStreak ?? "—"}</td>
-            <td className={styles.num}>{entry.stats?.bestStreak ?? "—"}</td>
-            <td className={styles.split}>
-              {entry.stats
-                ? `${entry.stats.classicWins} / ${entry.stats.timedWins}`
-                : "—"}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <motion.div
+      className={`${styles.row} ${isLeader ? styles.rowLeader : ""}`}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, delay, ease: [0.2, 0.8, 0.2, 1] as const }}
+    >
+      <span className={`${styles.rank} ${isLeader ? styles.rankLeader : ""}`}>
+        #{entry.rank ?? index + 1}
+      </span>
+
+      <div className={styles.player}>
+        <span
+          className={`${styles.monogram} ${isLeader ? styles.monogramLeader : ""}`}
+          aria-hidden
+        >
+          {monogramOf(entry.username)}
+        </span>
+        <div className={styles.playerMeta}>
+          <span className={styles.name} title={entry.username}>
+            {entry.username}
+          </span>
+          <span className={styles.subline}>
+            streak {entry.stats?.currentStreak ?? 0} · best{" "}
+            {entry.stats?.bestStreak ?? 0}
+            {entry.stats
+              ? ` · ${entry.stats.classicWins}C / ${entry.stats.timedWins}T`
+              : ""}
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.stat}>
+        <span className={`${styles.wins} ${isLeader ? styles.winsLeader : ""}`}>
+          {entry.wins}
+        </span>
+        <span className={styles.winsLabel}>Wins</span>
+      </div>
+    </motion.div>
   );
 }
 
@@ -342,9 +259,4 @@ function monogramOf(name: string): string {
   if (!trimmed) return "·";
   const first = trimmed[0];
   return first ? first.toUpperCase() : "·";
-}
-
-function formatRank(rank: number | undefined): string {
-  if (!rank) return "—";
-  return `#${rank}`;
 }
