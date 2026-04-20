@@ -399,15 +399,3 @@ Dockerfile.heroku       Heroku production image (root-level — see heroku.yml)
 heroku.yml              Heroku container manifest
 scripts/                Cross-platform orchestration (setup, dev, tests)
 ```
-
-## Milestones
-
-- **M1** ✅ — Local match: Go handler, private rooms via RPC, React Game page.
-- **M2** ✅ — Public matchmaker queue + rehydrate RPC + reconnect flow.
-- **M3** ✅ — Global leaderboard + per-user stats (wins/losses/streak).
-- **M4a** ✅ — Richer editorial redesign across Home, Game, Leaderboard, EndOverlay.
-- **M4b** ✅ — Heroku container deploy (server) + Vercel (client).
-
-## License
-
-TBD.
