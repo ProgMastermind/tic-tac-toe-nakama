@@ -1,9 +1,8 @@
 /*
- * Home screen. Three regions on desktop: a brand bar that spans the full
- * width, an editorial column with the masthead + your-record card on the
- * left, and a sticky action card on the right. Mobile collapses to a
- * single column with the brand bar, masthead, action card, record, and
- * footer stacked in reading order.
+ * Home is a single-column landing. Centered in a reading-width column
+ * (~42rem) so the type never wraps awkwardly and mobile is a free
+ * collapse of the same stack. Sections flow top-to-bottom: brand bar,
+ * masthead, action card (CTA is the hero), record strip, footer.
  */
 
 .screen {
@@ -12,6 +11,9 @@
   gap: var(--space-6);
   padding-block: var(--space-5) var(--space-8);
   flex: 1;
+  max-width: 42rem;
+  width: 100%;
+  margin-inline: auto;
 }
 
 /* ---- Brand bar ----------------------------------------------------- */
@@ -31,6 +33,8 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   color: var(--color-ink-subtle);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .connectedDot {
@@ -55,17 +59,26 @@
 .masthead {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-width: 46ch;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.eyebrow {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
 }
 
 .title {
-  font-size: var(--font-size-display);
+  font-size: clamp(2.25rem, 5vw, 3.4rem);
   font-family: var(--font-display);
   font-weight: 500;
   letter-spacing: var(--letter-tight);
   line-height: var(--line-tight);
   color: var(--color-ink);
+  margin-top: var(--space-1);
 }
 
 .titleItalic {
@@ -76,14 +89,15 @@
 .subtitle {
   color: var(--color-ink-muted);
   font-size: var(--font-size-md);
-  max-width: 46ch;
   line-height: var(--line-normal);
+  max-width: 44ch;
+  margin-top: var(--space-3);
 }
 
 /* ---- Display-name strip ------------------------------------------- */
 
 .mastheadMeta {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   font-size: var(--font-size-xs);
@@ -110,7 +124,6 @@
   display: flex;
   gap: var(--space-3);
   align-items: flex-end;
-  margin-top: var(--space-2);
   flex-wrap: wrap;
 }
 
@@ -119,122 +132,7 @@
   min-width: 14ch;
 }
 
-/* ---- Record card --------------------------------------------------- */
-
-.record {
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.recordHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.recordEyebrow {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: var(--letter-eyebrow);
-  text-transform: uppercase;
-  color: var(--color-ink-muted);
-}
-
-.recordFlame {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 2px var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-strong);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: var(--letter-eyebrow);
-  text-transform: uppercase;
-}
-
-.recordFlameDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent);
-}
-
-.recordGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4);
-}
-
-.recordCell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--color-border);
-  min-width: 0;
-}
-
-.recordCell:first-child {
-  padding-left: 0;
-  border-left: none;
-}
-
-.recordLabel {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: var(--letter-eyebrow);
-  text-transform: uppercase;
-  color: var(--color-ink-subtle);
-}
-
-.recordNumRow {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.recordNumStrong {
-  font-size: var(--font-size-2xl);
-  font-weight: 600;
-  color: var(--color-ink);
-  line-height: 1;
-}
-
-.recordNumAccent {
-  color: var(--color-accent);
-}
-
-.recordNum {
-  font-size: var(--font-size-lg);
-  color: var(--color-ink-muted);
-  line-height: 1;
-}
-
-.recordNumSep {
-  color: var(--color-ink-subtle);
-  font-size: var(--font-size-lg);
-  line-height: 1;
-}
-
-.recordSubLabel {
-  font-size: var(--font-size-xs);
-  color: var(--color-ink-subtle);
-  font-family: var(--font-mono);
-  letter-spacing: var(--letter-wide);
-}
-
-/* ---- Action card --------------------------------------------------- */
+/* ---- Action card (CTA is the hero) -------------------------------- */
 
 .card {
   background: var(--color-bg-raised);
@@ -247,10 +145,24 @@
   box-shadow: var(--shadow-md);
 }
 
+.cardHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cardEyebrow {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+
 .cardLead {
   color: var(--color-ink-muted);
-  line-height: var(--line-normal);
   font-size: var(--font-size-sm);
+  line-height: var(--line-normal);
 }
 
 .joinRow {
@@ -318,6 +230,75 @@
   }
 }
 
+/* ---- Record strip -------------------------------------------------- */
+
+.record {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.recordCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-4);
+  background: var(--color-bg-raised);
+  min-width: 0;
+}
+
+.recordLabel {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+
+.recordNumRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  margin-top: var(--space-1);
+}
+
+.recordNumStrong {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.recordNumAccent {
+  color: var(--color-accent);
+}
+
+.recordNum {
+  font-size: var(--font-size-md);
+  color: var(--color-ink-muted);
+  line-height: 1;
+}
+
+.recordNumSep {
+  color: var(--color-ink-subtle);
+  font-size: var(--font-size-md);
+  line-height: 1;
+}
+
+.recordSubLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono);
+  letter-spacing: var(--letter-wide);
+  margin-top: 2px;
+}
+
 /* ---- Footer -------------------------------------------------------- */
 
 .footer {
@@ -360,50 +341,13 @@
   }
 }
 
-/* ---- Responsive ---------------------------------------------------- */
+/* ---- Mobile -------------------------------------------------------- */
 
-@media (max-width: 640px) {
-  .recordGrid {
-    grid-template-columns: 1fr;
-    gap: var(--space-3);
-  }
-  .recordCell {
-    padding-left: 0;
-    padding-top: var(--space-3);
-    border-left: none;
-    border-top: 1px solid var(--color-border);
-  }
-  .recordCell:first-child {
-    padding-top: 0;
-    border-top: none;
-  }
-  .title {
-    font-size: clamp(2.25rem, 12vw, 3.5rem);
-  }
-}
-
-@media (min-width: 860px) {
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
-    gap: var(--space-7);
-    align-items: start;
-  }
-  .masthead {
-    grid-column: 1;
-    grid-row: 1;
-    padding-top: var(--space-4);
-  }
+@media (max-width: 520px) {
   .record {
-    grid-column: 1;
-    grid-row: 2;
-    align-self: end;
+    grid-template-columns: 1fr;
   }
   .card {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    position: sticky;
-    top: var(--space-6);
+    padding: var(--space-5);
   }
 }

@@ -5,7 +5,6 @@ import { Wordmark } from "@/components/brand/Wordmark";
 import { Button } from "@/components/ui/Button";
 import { ModeToggle } from "@/components/ui/ModeToggle";
 import { Rule } from "@/components/ui/Rule";
-import { SectionHead } from "@/components/ui/SectionHead";
 import { TextInput } from "@/components/ui/TextInput";
 import { useNakama } from "@/context/NakamaProvider";
 import { useStats } from "@/hooks/useStats";
@@ -44,12 +43,12 @@ export default function Home() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // `?mode=classic|timed` preselects the mode toggle when the user
-  // lands here from EndOverlay's "Play again" — keeps the rematch a
-  // single click away.
+  // `?mode=classic|timed` preselects the mode toggle when the user lands
+  // here from EndOverlay's "Play again" — keeps the rematch one click away.
   const initialMode: GameMode =
     searchParams.get("mode") === "timed" ? "timed" : "classic";
   const [mode, setMode] = useState<GameMode>(initialMode);
+
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -75,12 +74,6 @@ export default function Home() {
   const anyBusy = creating || joining || matchmaking || searching;
 
   // ---- Matchmaker: subscribe to matched notifications ----------------
-  //
-  // We register once on mount; the handler navigates whenever a match
-  // arrives that corresponds to our outstanding ticket. The server is
-  // the source of truth for match assignment, so we don't try to match
-  // ticket ids too defensively — any matched notification while we're
-  // still subscribed was meant for us.
   useEffect(() => {
     const unsubscribe = registerMatchmakerMatchedHandler((matched) => {
       // nakama-js exposes snake_case on event payloads.
@@ -94,15 +87,15 @@ export default function Home() {
 
       const params = new URLSearchParams();
       if (token) params.set("t", token);
-      params.set("mm", "1"); // flag that this was a matchmaker origin
+      params.set("mm", "1");
       const query = params.toString();
       navigate(`/game/${matchId}${query ? `?${query}` : ""}`);
     });
     return unsubscribe;
   }, [navigate, registerMatchmakerMatchedHandler]);
 
-  // ---- Unmount safety: if the user navigates away mid-search, cancel
-  //      the ticket so they don't get dropped into a stale match later.
+  // If the user navigates away mid-search, cancel the ticket so they
+  // don't get dropped into a stale match later.
   useEffect(() => {
     return () => {
       const stale = ticketRef.current;
@@ -112,15 +105,11 @@ export default function Home() {
     };
   }, [socket]);
 
-  // ---- Find a match --------------------------------------------------
   const handleFindMatch = useCallback(async () => {
     if (!socket) return;
     setLobbyError(null);
     setMatchmaking(true);
     try {
-      // String properties surface under `properties.*` in the query DSL.
-      // Pinning +properties.mode:<mode> on both sides guarantees the
-      // server only matches compatible players.
       const resp = await socket.addMatchmaker(
         `+properties.mode:${mode}`,
         /*minCount*/ 2,
@@ -151,7 +140,6 @@ export default function Home() {
     }
   }, [socket]);
 
-  // ---- Create private room ------------------------------------------
   const handleCreate = useCallback(async () => {
     if (!session) return;
     setLobbyError(null);
@@ -168,7 +156,6 @@ export default function Home() {
     }
   }, [client, session, mode, navigate]);
 
-  // ---- Join with code ------------------------------------------------
   const handleJoin = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
@@ -212,122 +199,113 @@ export default function Home() {
 
       <Rule />
 
-      <div className={styles.layout}>
-        <header className={styles.masthead}>
-          <SectionHead numeral="I" eyebrow="A classic, reimagined" />
-          <h1 className={styles.title}>
-            Tic tac toe,
-            <br />
-            <span className={styles.titleItalic}>played properly.</span>
-          </h1>
-          <p className={`${styles.subtitle} dropCap`}>
-            A two-player board built on a server-authoritative backend. Every
-            move is validated on Nakama before the board updates — no turns
-            stolen, no cells overwritten, no ghosts on the wire.
-          </p>
-        </header>
+      <header className={styles.masthead}>
+        <span className={styles.eyebrow}>A classic, reimagined</span>
+        <h1 className={styles.title}>
+          Tic tac toe,
+          <br />
+          <span className={styles.titleItalic}>played properly.</span>
+        </h1>
+        <p className={styles.subtitle}>
+          A two-player board built on a server-authoritative backend. Every
+          move is validated on Nakama before the board updates.
+        </p>
+      </header>
 
-        <section className={styles.card} aria-label="Start playing">
-          <SectionHead
-            numeral="II"
-            eyebrow="Start a game"
-            title="Pick a mode"
-          />
+      <section className={styles.card} aria-label="Start playing">
+        <div className={styles.cardHead}>
+          <span className={styles.cardEyebrow}>Start a game</span>
           <p className={styles.cardLead}>
             Classic is turn-based. Timed adds a 30-second clock per move —
             dawdle and the server hands the board to your opponent.
           </p>
+        </div>
 
-          <ModeToggle value={mode} onChange={setMode} disabled={anyBusy} />
+        <ModeToggle value={mode} onChange={setMode} disabled={anyBusy} />
 
-          {searching ? (
-            <div className={styles.searching} role="status" aria-live="polite">
-              <span className={styles.searchingDot} aria-hidden />
-              <span className={styles.searchingText}>
-                <span className={styles.searchingTitle}>
-                  Finding a {mode} opponent…
-                </span>
-                <span className={styles.searchingSub}>
-                  Matchmaker is live. You&rsquo;ll be dropped in automatically.
-                </span>
+        {searching ? (
+          <div className={styles.searching} role="status" aria-live="polite">
+            <span className={styles.searchingDot} aria-hidden />
+            <span className={styles.searchingText}>
+              <span className={styles.searchingTitle}>
+                Finding a {mode} opponent…
               </span>
-              <Button
-                variant="ghost"
-                size="md"
-                onClick={handleCancelMatchmaking}
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button
-              size="lg"
-              block
-              onClick={handleFindMatch}
-              loading={matchmaking}
-              disabled={!socket || !session || anyBusy}
-            >
-              Find a match
+              <span className={styles.searchingSub}>
+                Matchmaker is live. You&rsquo;ll be dropped in automatically.
+              </span>
+            </span>
+            <Button variant="ghost" size="md" onClick={handleCancelMatchmaking}>
+              Cancel
             </Button>
-          )}
-
-          {lobbyError ? (
-            <p role="alert" className={styles.cardError}>
-              {lobbyError}
-            </p>
-          ) : null}
-
-          <Rule label="or play with a friend" />
-
+          </div>
+        ) : (
           <Button
-            variant="secondary"
             size="lg"
             block
-            onClick={handleCreate}
-            loading={creating}
-            disabled={!session || joining || searching || matchmaking}
+            onClick={handleFindMatch}
+            loading={matchmaking}
+            disabled={!socket || !session || anyBusy}
           >
-            Create a private room
+            Find a match
           </Button>
+        )}
 
-          <form onSubmit={handleJoin} noValidate>
-            <div className={styles.joinRow}>
-              <TextInput
-                mono
-                label="Join with a code"
-                placeholder="ABCD"
-                maxLength={4}
-                value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  setCodeError(null);
-                }}
-                error={codeError}
-                autoComplete="off"
-                autoCapitalize="characters"
-                spellCheck={false}
-              />
-              <Button
-                variant="secondary"
-                size="lg"
-                type="submit"
-                loading={joining}
-                disabled={
-                  !session ||
-                  creating ||
-                  searching ||
-                  matchmaking ||
-                  code.trim().length !== 4
-                }
-              >
-                Join
-              </Button>
-            </div>
-          </form>
-        </section>
+        {lobbyError ? (
+          <p role="alert" className={styles.cardError}>
+            {lobbyError}
+          </p>
+        ) : null}
 
-        <RecordCard stats={stats} />
-      </div>
+        <Rule label="or play with a friend" />
+
+        <Button
+          variant="secondary"
+          size="lg"
+          block
+          onClick={handleCreate}
+          loading={creating}
+          disabled={!session || joining || searching || matchmaking}
+        >
+          Create a private room
+        </Button>
+
+        <form onSubmit={handleJoin} noValidate>
+          <div className={styles.joinRow}>
+            <TextInput
+              mono
+              label="Join with a code"
+              placeholder="ABCD"
+              maxLength={4}
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setCodeError(null);
+              }}
+              error={codeError}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+            />
+            <Button
+              variant="secondary"
+              size="lg"
+              type="submit"
+              loading={joining}
+              disabled={
+                !session ||
+                creating ||
+                searching ||
+                matchmaking ||
+                code.trim().length !== 4
+              }
+            >
+              Join
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <RecordCard stats={stats} />
 
       <footer className={styles.footer}>
         <Wordmark size="sm" />
@@ -431,60 +409,47 @@ function DisplayNameStrip({
 }
 
 /**
- * RecordCard replaces the old flat stats strip. Three column-blocks —
- * totals, streak, and mode split — separated by hairlines on desktop and
- * stacked with top-borders on mobile. Streak is accent-coloured only
- * while it's actually alive (>0) so the strip doesn't misrepresent a
- * cold start as a fresh streak. A "Streak live" chip surfaces the same
- * state at the card header for a second visual read.
+ * RecordCard is a compact three-cell strip beneath the action card.
+ * Lower visual weight than the CTA on purpose — it provides evidence of
+ * progress without competing with "Find a match" for attention. Streak
+ * goes accent-coloured only while it's actually alive (>0).
  */
 function RecordCard({ stats }: { stats: StatsSummary }) {
   const streakAlive = stats.currentStreak > 0;
   return (
     <aside className={styles.record} aria-label="Your record">
-      <header className={styles.recordHead}>
-        <span className={styles.recordEyebrow}>Your record</span>
-        {streakAlive ? (
-          <span className={styles.recordFlame}>
-            <span className={styles.recordFlameDot} aria-hidden />
-            Streak live
+      <div className={styles.recordCell}>
+        <span className={styles.recordLabel}>Totals</span>
+        <div className={styles.recordNumRow}>
+          <span className={styles.recordNumStrong}>{stats.wins}</span>
+          <span className={styles.recordNumSep}>·</span>
+          <span className={styles.recordNum}>{stats.losses}</span>
+          <span className={styles.recordNumSep}>·</span>
+          <span className={styles.recordNum}>{stats.draws}</span>
+        </div>
+        <span className={styles.recordSubLabel}>wins · losses · draws</span>
+      </div>
+      <div className={styles.recordCell}>
+        <span className={styles.recordLabel}>Streak</span>
+        <div className={styles.recordNumRow}>
+          <span
+            className={`${styles.recordNumStrong} ${streakAlive ? styles.recordNumAccent : ""}`}
+          >
+            {stats.currentStreak}
           </span>
-        ) : null}
-      </header>
-      <div className={styles.recordGrid}>
-        <div className={styles.recordCell}>
-          <span className={styles.recordLabel}>Totals</span>
-          <div className={styles.recordNumRow}>
-            <span className={styles.recordNumStrong}>{stats.wins}</span>
-            <span className={styles.recordNumSep}>·</span>
-            <span className={styles.recordNum}>{stats.losses}</span>
-            <span className={styles.recordNumSep}>·</span>
-            <span className={styles.recordNum}>{stats.draws}</span>
-          </div>
-          <span className={styles.recordSubLabel}>wins · losses · draws</span>
+          <span className={styles.recordNumSep}>/</span>
+          <span className={styles.recordNum}>{stats.bestStreak}</span>
         </div>
-        <div className={styles.recordCell}>
-          <span className={styles.recordLabel}>Streak</span>
-          <div className={styles.recordNumRow}>
-            <span
-              className={`${styles.recordNumStrong} ${streakAlive ? styles.recordNumAccent : ""}`}
-            >
-              {stats.currentStreak}
-            </span>
-            <span className={styles.recordNumSep}>/</span>
-            <span className={styles.recordNum}>{stats.bestStreak}</span>
-          </div>
-          <span className={styles.recordSubLabel}>current · best</span>
+        <span className={styles.recordSubLabel}>current · best</span>
+      </div>
+      <div className={styles.recordCell}>
+        <span className={styles.recordLabel}>By mode</span>
+        <div className={styles.recordNumRow}>
+          <span className={styles.recordNumStrong}>{stats.classicWins}</span>
+          <span className={styles.recordNumSep}>/</span>
+          <span className={styles.recordNum}>{stats.timedWins}</span>
         </div>
-        <div className={styles.recordCell}>
-          <span className={styles.recordLabel}>By mode</span>
-          <div className={styles.recordNumRow}>
-            <span className={styles.recordNumStrong}>{stats.classicWins}</span>
-            <span className={styles.recordNumSep}>/</span>
-            <span className={styles.recordNum}>{stats.timedWins}</span>
-          </div>
-          <span className={styles.recordSubLabel}>classic · timed</span>
-        </div>
+        <span className={styles.recordSubLabel}>classic · timed</span>
       </div>
     </aside>
   );
@@ -494,22 +459,12 @@ function RecordCard({ stats }: { stats: StatsSummary }) {
 /* RPC helpers                                                         */
 /* ------------------------------------------------------------------ */
 
-/**
- * client.rpc returns payload typed as `object | undefined` on success —
- * but server-side our handlers return a JSON *string*, which nakama-js
- * forwards verbatim. Handle both shapes so we're resilient to a future
- * SDK behaviour change.
- */
 function parseRpc<T>(payload: object | string | undefined): T {
   if (payload == null) throw new Error("empty response");
   if (typeof payload === "string") return JSON.parse(payload) as T;
   return payload as T;
 }
 
-/**
- * Nakama errors bubble through .json() on the HTTP client. Fall back to
- * the default message if we can't extract a server-side message.
- */
 async function formatRpcError(err: unknown, fallback: string): Promise<string> {
   if (err && typeof err === "object" && "json" in err) {
     try {
