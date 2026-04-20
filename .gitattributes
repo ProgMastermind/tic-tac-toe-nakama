@@ -1,0 +1,5 @@
+# Shell scripts MUST keep LF line endings so they execute on the Linux
+# dynos and images we build. Git on Windows otherwise converts to CRLF
+# on checkout and Docker copies the \r characters into the container,
+# which makes /bin/sh fail with "bad interpreter".
+*.sh text eol=lf
