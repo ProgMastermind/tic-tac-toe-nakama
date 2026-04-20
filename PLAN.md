@@ -7,7 +7,7 @@ updated to match.
 
 **Repo**: https://github.com/ProgMastermind/tic-tac-toe-nakama
 **Current branch**: `main`
-**HEAD as of this writing**: `bd4cef3` (M3 complete, unpushed)
+**HEAD as of this writing**: `8560162` (M4a complete — design polish + perf tuning, unpushed)
 
 ---
 
@@ -29,7 +29,7 @@ broadcasts. Satisfies the full assignment brief plus three bonus features
 | Motion   | Framer Motion 11 + canvas-confetti 1.9             |
 | Backend  | Nakama 3.38.0 + Go 1.26 plugin (`buildmode=plugin`)|
 | DB       | PostgreSQL 15-alpine                               |
-| Infra    | Docker Compose locally; DigitalOcean + Caddy + Vercel for prod |
+| Infra    | Docker Compose locally; **Heroku** (paid Basic dyno + Postgres Mini) + Vercel for prod |
 
 ---
 
@@ -57,7 +57,24 @@ rank, wins, live streak, best streak, and classic / timed split.
 Abandoned matches are filtered so never-started rooms don't pollute
 the record.
 
-**M4 — production deploy** 🔜 **NEXT** (DigitalOcean + Vercel)
+**M4a — design polish + perf** ✅ **DONE**
+Editorial furniture primitives (`Wordmark`, `Rule`, `SectionHead`)
+plus paper-grain token. Home rebuilt as a single-column 42rem
+landing: wordmark + connection chip brandbar, short masthead, action
+card with the CTA as hero, three-cell record strip that footer-links
+to the leaderboard. Game stage gets a breadcrumb topbar,
+ghost-board waiting illustration, and SVG X/O marks on the
+`PlayerBadge` with a pulsing active-turn rail. Leaderboard rebuilt
+as a single ranked list (rank 1 gets an accent wash + red left rail)
+after the podium felt lonely with few entries. End overlay shows a
+W/L/D · Streak echo strip and carries the just-played mode back to
+Home via `?mode=`. Mobile tuned at 520px and 400px breakpoints: join
+row stacks vertically, monogram shrinks, subline truncates.
+**Perf**: matchmaker `interval_sec` dropped from 15 → 2 (paired
+tickets resolve ~1s avg), match tick rate bumped from 1Hz → 20Hz so
+move-apply latency stays under ~50ms.
+
+**M4b — production deploy** 🔜 **NEXT** (Heroku + Vercel)
 
 ---
 
@@ -86,14 +103,14 @@ Files in [server/go-module/](server/go-module/):
 | 4    | C→S       | rematch request (placeholder, unwired)    |
 | 5    | S→C       | per-user validation error (never broadcast) |
 
-**Match lifecycle, per tick (tickRate=1):**
+**Match lifecycle, per tick (tickRate=20, every 50ms):**
 
 1. If `status=waiting` and `now > joinDeadlineMs` → abandon.
 2. For each player with a live disconnect-clock past 20s → forfeit, opponent wins.
 3. For each inbound `OpMove`: `ValidateMove` → `ApplyMove` → broadcast state.
 4. If `mode=timed` and `status=playing` and `now > turnDeadlineMs` → timeout forfeit.
 5. On transition to `finished`: broadcast `OpMatchEnded`, mark `StatsWritten=true`.
-6. If finished and empty for 30 ticks → return `nil` (terminate).
+6. If finished and empty for `EmptyMatchSeconds × TickRate = 600` ticks (30 wall-clock seconds) → return `nil` (terminate).
 
 **Match label shape** (JSON, set at `MatchInit`, updated on full room):
 
@@ -140,17 +157,20 @@ Files in [client/src/](client/src/):
 - [hooks/useMatch.ts](client/src/hooks/useMatch.ts) — joins/leaves a match (optional matchmaker token on first join), routes opcodes through a reducer, exposes `makeMove`.
 - [lib/nakama.ts](client/src/lib/nakama.ts) — env-var validation, device-id lifecycle (`crypto.randomUUID` → localStorage).
 - [hooks/useStats.ts](client/src/hooks/useStats.ts) — fetches the caller's stats via `get_stats`; refetches on boot and on every reconnect. Zero-valued default means the UI never flashes a spinner on first paint.
-- [pages/Home.tsx](client/src/pages/Home.tsx) — lobby: display-name editor, stats strip, mode toggle, **Find a match** (matchmaker), create / join flows, cancellable search state, footer link to leaderboard.
-- [pages/Game.tsx](client/src/pages/Game.tsx) — board + players + timer + waiting state + end overlay. Reads `?t=<token>` from URL for matchmaker-origin joins.
-- [pages/Leaderboard.tsx](client/src/pages/Leaderboard.tsx) — top 10 view. One `listLeaderboardRecords` call + one batched `readStorageObjects` to hydrate streak + classic/timed split per row.
-- [components/ui/](client/src/components/ui/) — `Button`, `TextInput`, `ModeToggle` (primitives).
-- [components/game/](client/src/components/game/) — `Board`, `Cell`, `Timer`, `PlayerBadge`, `EndOverlay`.
-- [styles/tokens.css](client/src/styles/tokens.css) — the design system (palette, type, spacing, motion).
+- [pages/Home.tsx](client/src/pages/Home.tsx) — single-column 42rem landing: brandbar (Wordmark + name + connection chip), masthead, action card (mode toggle + Find a match CTA + rule + create-private + join-by-code), three-cell record strip that footer-links to the leaderboard, secondary-nav footer. Reads `?mode=` to pre-select the toggle when arriving from an end-of-match.
+- [pages/Game.tsx](client/src/pages/Game.tsx) — breadcrumb topbar + rule, scorecard-style player row, ghost-board waiting illustration, framer-motion page-enter. Reads `?t=<token>` from URL for matchmaker-origin joins. Back to lobby carries `?mode=<current>` back to Home.
+- [pages/Leaderboard.tsx](client/src/pages/Leaderboard.tsx) — single 44rem ranked list (replaced the earlier silver-gold-bronze podium because it looked lonely with few entries). Rank 1 gets an accent-soft wash + 3px red left rail so the leader reads at a glance. One `listLeaderboardRecords` call + one batched `readStorageObjects` to hydrate streak + classic/timed split per row.
+- [components/brand/Wordmark.tsx](client/src/components/brand/Wordmark.tsx) — inline SVG mark (3×3 dot grid, center dot in accent) paired with a Fraunces wordmark (`Tic Tac Toe` with `Toe` italic + accent).
+- [components/ui/](client/src/components/ui/) — `Button`, `TextInput`, `ModeToggle`, `SectionHead`, `Rule` (primitives).
+- [components/game/](client/src/components/game/) — `Board`, `Cell`, `Timer`, `PlayerBadge` (SVG X/O marks + pulsing active-turn rail), `EndOverlay` (with W/L/D · Streak echo pulled from `useStats().refresh()` on mount).
+- [styles/tokens.css](client/src/styles/tokens.css) — the design system (palette, type, spacing, motion, paper-grain URL).
 
 **Design language** (locked in — do not theme-swap without user approval):
-editorial minimalism, warm off-white paper (`#FAF8F3`), near-black ink,
-one editorial red accent (`#B2342C`). **No gradient backgrounds.** Fraunces
-(display) + Inter (body) + JetBrains Mono (timers, codes). Mobile-first.
+editorial minimalism with **restraint** (see §5 gotcha 15), warm off-white
+paper (`#FAF8F3`), near-black ink, one editorial red accent (`#B2342C`).
+**No gradient backgrounds.** Fraunces (display) + Inter (body) + JetBrains
+Mono (timers, codes). Subtle paper-grain overlay on the body. Single-column
+reading-width layouts (42–44rem) rather than 2-col grids. Mobile-first.
 
 ### 3.3 Deploy (local)
 
@@ -185,7 +205,8 @@ re-litigate them without a real reason.
 
 | Decision | Why |
 |----------|-----|
-| `tickRate=1` (1 Hz) | Moves arrive as messages regardless of tick rate. Ticks only check time-based deadlines. ±1s precision is fine for a 30s turn timer. |
+| `tickRate=20` (20 Hz, every 50ms) | Messages queue between `MatchLoop` ticks. At 1Hz that was up to 1s of dead time between click and mark — clearly laggy. 20Hz caps move-apply latency under ~50ms. Loop is O(1) so CPU cost is negligible. `EmptyMatchTicks = EmptyMatchSeconds × TickRate` so the 30s cleanup window survives the rate change. |
+| `matchmaker.interval_sec: 2` | Nakama's 15s default makes **Find a match** feel sluggish. At 2s paired tickets resolve in ~1s avg. CPU cost of scanning the (tiny) pool every 2s is negligible. |
 | Private rooms pass `creator` not `expected_users` | Non-empty `ExpectedUsers` triggers matchmaker-gate logic in `MatchJoinAttempt` which rejects anyone else. Private rooms let the first 2 unique joiners win the slots. |
 | Join-deadline = **120s**, not 15s | 15s was dev ergonomics. Real flow: create → copy code → paste into chat → friend reads → types → joins. 120s covers that; orphaned rooms are cheap. |
 | Room code on label, not storage row | Code dies with the match — no orphaned rows to GC. |
@@ -226,66 +247,117 @@ A reminder list so the next session doesn't re-discover these.
 12. **Docker Desktop 29.x displays `HTTP Proxy: http.docker.internal:3128` in `docker info` even when upstream proxy is configured.** That's the internal gateway — the real upstream (Intel proxy) sits behind it. Don't assume the proxy is unset based on `docker info` alone; test with `docker pull alpine:latest` instead.
 13. **Rehydrate races match-end.** If the active_match row lives until `MatchTerminate` (30 empty ticks), a user who clicks Back to Lobby can be bounced right back. Clear the row on `MatchLeave` when the match is already `StatusFinished`. On the client, `RehydrateGate` is a boot-time one-shot — don't re-run on every reconnect.
 14. **`nakama-js` hydrates `ApiStorageObject.value` into an `object`, not a JSON string.** The server sends `value` as a JSON string, but the SDK parses it for you before handing it over. Calling `JSON.parse(obj.value)` on the client is both a TypeScript error (the type is `object`, not `string`) and a runtime double-parse. Treat the client-side `obj.value` as the parsed object directly — opposite to what the Go server's `obj.Value` string returns.
+15. **Editorial design favours restraint over density.** First attempt at a "richer editorial" Home stacked section numerals (I / II) + a huge drop cap + a 2-col grid + wordmark bar + rules simultaneously — cluttered on desktop, would collapse ugly on mobile. User called it "looking very bad". Fix: one strong typographic move per screen, not five. Default to single-column 40–44rem reading-width layouts unless a screen has two genuinely independent regions. When in doubt, show a mockup before layering ornaments.
+16. **Podium layouts look lonely when the board is sparse.** The original Leaderboard top-3 podium (silver-gold-bronze) felt great with 10 entries populated in dev, but in reality the prod leaderboard starts empty. With 1 winner the podium shows a single card flanked by empty slots. Rebuilt as a single ranked list where rank 1 gets an accent wash + red left rail — reads cleanly whether there's 1 entry or 10.
+17. **Play again was redundant UX.** Shipping both "Play again" and "Back to lobby" on the end overlay looked like two distinct CTAs but they did the same thing (both called `leave()` + navigated to `/`, only differing in `?mode=`). Users couldn't actually start a new match from the overlay — they still had to click Find a match at the lobby. Collapsed to a single button that carries the mode hint.
+18. **Default Nakama matchmaker interval (15s) is unusable for demos.** Even on localhost the first test of Find a match felt broken because both players would queue and then wait up to 15s. Set `matchmaker.interval_sec: 2` in `local.yml` (and carry forward to `prod.yml`) on any new Nakama deploy.
+19. **1Hz match tick = laggy perceived feel.** The plan originally specified `tickRate=1` on the grounds that moves "arrive as messages regardless of tick rate". That's technically true but misleading — `MatchLoop` still only runs at tick rate, so a move message waits until the next loop iteration before being applied and broadcast. At 1Hz that's up to 1000ms of dead time. 20Hz fixes it without measurable CPU cost.
 
 ---
 
 ## 6 · Remaining work
 
-### 6.1 M4 — Production deploy
+### 6.1 M4b — Production deploy (Heroku + Vercel)
 
 **Goal:** the live URL from the assignment brief. Game reachable at a
-public hostname, backed by a real Nakama instance with TLS, running
-under a process supervisor with daily backups.
+public hostname, backed by a real Nakama instance with TLS, never
+sleeping, with stats/leaderboard persisting across dyno restarts.
 
-**Components to build:**
+**Why Heroku over other hosts** — user has an active subscription, so
+cost is sunk. Basic dyno ($7/mo) never sleeps, survives reviewer
+visits days later. Heroku Postgres Mini ($5/mo) is paid, persistent,
+no 30-day expiry. TLS + WebSocket routing are bundled at the router
+(no Caddy needed). `heroku ps:forward` tunnels the console port.
+Dyno cycles once every ~24h (a ~20s blip) which is invisible to a
+reviewer since matches last ~2min. Alternatives considered + rejected:
+Koyeb (free, but 512MB free tier is tight, acquisition risk, less
+mature tooling); Render/Fly/Railway free tiers either require a
+credit card or sleep on idle; DigitalOcean droplet works but is a
+pointless second bill when Heroku subscription is already paid.
 
-1. **DigitalOcean droplet** — Ubuntu 22.04, 2 GB RAM, $12/mo. Use `doctl` or the web console. Bind a domain (e.g. `ttt.yourdomain.com` for client, `nakama.yourdomain.com` for server).
+**Files to build:**
 
-2. **Caddy reverse proxy** — `deploy/Caddyfile` with two sites:
-   - `nakama.yourdomain.com` → `reverse_proxy nakama:7350` (WebSocket auto-upgrade).
-   - `console.yourdomain.com` → `reverse_proxy nakama:7351` + `basicauth` with a bcrypted admin password.
+1. **[server/Dockerfile.heroku](server/Dockerfile.heroku)** — multi-stage, identical builder stage to the existing Dockerfile, final stage copies `deploy/prod.yml` + `server/heroku-entrypoint.sh` and sets the shim as `CMD`.
 
-3. **Production Nakama config** — `deploy/prod.yml`, derived from `local.yml`:
-   - Unique `encryption_key`, `refresh_encryption_key`, `http_key`, `socket.server_key`.
-   - Secrets injected via environment variables at container start (not committed).
-   - `logger.level: WARN`.
-   - `console.password` bcrypted.
-
-4. **docker-compose.prod.yml** — same services as local but with the Caddy container added and bind mounts for persistent volumes.
-
-5. **Postgres backup** — systemd timer:
+2. **[server/heroku-entrypoint.sh](server/heroku-entrypoint.sh)** — executable shell shim:
+   ```sh
+   #!/bin/sh
+   set -eu
+   DB="$(printf '%s' "$DATABASE_URL" | sed -E 's|^postgres(ql)?://||')"
+   case "$DB" in *'?'*) DB="${DB}&sslmode=require" ;; *) DB="${DB}?sslmode=require" ;; esac
+   /nakama/nakama migrate up --database.address "$DB"
+   exec /nakama/nakama \
+     --config /nakama/data/prod.yml \
+     --database.address "$DB" \
+     --socket.port "$PORT" \
+     --socket.server_key "$NAKAMA_SERVER_KEY" \
+     --runtime.http_key "$NAKAMA_HTTP_KEY" \
+     --session.encryption_key "$NAKAMA_SESSION_KEY" \
+     --session.refresh_encryption_key "$NAKAMA_SESSION_REFRESH" \
+     --console.username "$NAKAMA_CONSOLE_USER" \
+     --console.password "$NAKAMA_CONSOLE_PASSWORD"
    ```
-   docker exec <postgres> pg_dump -U postgres nakama | gzip > /backups/ttt-$(date +%F).sql.gz
-   ```
-   Daily, retain 14 days.
+   Heroku exposes `DATABASE_URL` as `postgres://user:pass@host:port/db`; Nakama wants `user:pass@host:port/db` with `?sslmode=require`. All secrets come from `heroku config:set` — no secret ever lands in a committed file.
 
-6. **Vercel client** — link GitHub repo, set root directory to `client/`, build command `npm run build`, output `dist/`. Env vars:
+3. **[deploy/prod.yml](deploy/prod.yml)** — non-secret prod overrides only (logger level, socket timeouts, match queues, matchmaker `interval_sec: 2`). Same shape as `local.yml`, secret fields omitted because they're passed via CLI flags above.
+
+4. **[heroku.yml](heroku.yml)** — app manifest:
+   ```yaml
+   build:
+     docker:
+       web: server/Dockerfile.heroku
    ```
-   VITE_NAKAMA_HOST=nakama.yourdomain.com
+   No `run` block (Dockerfile `CMD` is the entrypoint). No `release` phase (migrations run inside the shim on dyno boot — the official Nakama pattern).
+
+5. **[client/.env.production.example](client/.env.production.example)** — Vercel-injected prod template:
+   ```
+   VITE_NAKAMA_HOST=<your-app>.herokuapp.com
    VITE_NAKAMA_PORT=443
    VITE_NAKAMA_USE_SSL=true
-   VITE_NAKAMA_SERVER_KEY=<secret, from prod.yml>
+   VITE_NAKAMA_SERVER_KEY=<same as NAKAMA_HTTP_KEY on server>
    ```
+   Real values live in Vercel's env-var UI; only the template is committed.
 
-7. **README deployment section** — full walkthrough of droplet creation, DNS setup, first deploy, update flow.
+6. **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — dedicated walkthrough (README stays short). Sections: prereqs, server deploy to Heroku (CLI block + `heroku logs --tail` verification), client deploy to Vercel, admin console tunneling via `heroku ps:forward 7351:7351`, troubleshooting (plugin ABI mismatch, `sslmode=require`, dyno restart behaviour), cost note ($7 dyno + $5 Postgres Mini).
 
-**New files:**
-- `deploy/Caddyfile`
-- `deploy/prod.yml`
-- `deploy/docker-compose.prod.yml`
-- `docs/DEPLOYMENT.md`
+**Heroku CLI setup (documented in walkthrough, not run from Claude):**
+
+```sh
+heroku create <app-name>
+heroku stack:set container --app <app-name>
+heroku addons:create heroku-postgresql:mini --app <app-name>
+heroku config:set \
+  NAKAMA_SERVER_KEY="$(openssl rand -hex 24)" \
+  NAKAMA_HTTP_KEY="$(openssl rand -hex 24)" \
+  NAKAMA_SESSION_KEY="$(openssl rand -hex 32)" \
+  NAKAMA_SESSION_REFRESH="$(openssl rand -hex 32)" \
+  NAKAMA_CONSOLE_USER="admin" \
+  NAKAMA_CONSOLE_PASSWORD="$(openssl rand -hex 24)" \
+  --app <app-name>
+heroku ps:scale web=1:basic --app <app-name>   # $7/mo, never sleeps
+git push heroku main
+```
 
 **Verification:**
-- Two browsers on different networks can play a full match against the public server.
-- `curl https://nakama.yourdomain.com/healthcheck` returns 200.
-- Console accessible with basic auth, match inspector shows live games.
-- `docker compose exec postgres pg_isready` inside droplet.
-- Backup cron has written at least one file overnight.
+- Dry-run locally: `docker build -f server/Dockerfile.heroku -t ttt-heroku .` succeeds; `docker run --rm -e PORT=7350 -e DATABASE_URL=postgres://... [all env vars] ttt-heroku` boots against a local Postgres and migrates cleanly.
+- `git push heroku main` → `heroku logs --tail` shows `"Module loaded"` → `"Registered match handler 'tictactoe'"` → `"Startup done"`.
+- `curl https://<app>.herokuapp.com/healthcheck` → 200.
+- `heroku ps:forward 7351:7351` → console reachable at `http://localhost:7351` with `NAKAMA_CONSOLE_USER` / `NAKAMA_CONSOLE_PASSWORD`.
+- Vercel deploy with the four prod env vars → two incognito windows can play full classic + timed matches end-to-end against the live stack.
+- Leaderboard on Vercel URL shows the wins.
+- Leave the app idle 30 min; refresh — still responsive (Basic dyno doesn't sleep).
+
+**Rollback:**
+- Client: Vercel keeps every deploy; "Promote to Production" on any prior build.
+- Server: `heroku releases` → `heroku rollback v<N>` returns to previous image in seconds.
+- Postgres: `heroku pg:backups:capture` before first M4b deploy; restore via `heroku pg:backups:restore <id>` if needed.
 
 **Commit plan:**
-1. `feat(deploy): Caddyfile + prod compose stack`
-2. `feat(deploy): production Nakama config template`
-3. `docs: deployment walkthrough`
+1. `feat(deploy): heroku production dockerfile + entrypoint shim`
+2. `feat(deploy): nakama prod config + env-driven secrets`
+3. `feat(deploy): heroku.yml manifest`
+4. `feat(client): vercel prod env template`
+5. `docs: heroku + vercel deployment walkthrough`
 
 ---
 
@@ -304,8 +376,8 @@ under a process supervisor with daily backups.
 
 If you're reading this after a chat compaction:
 
-1. Run `git log --oneline` — top commits should be `bd4cef3` (M3 client) → `eeb3661` (get_stats) → `c520d6f` (stats writer) → `789f3d0` (leaderboard init) → `0bd6fb0` (M2 plan snapshot) → `603f0b6` (back-to-lobby fix) → older. If not, the state described in §3 may have drifted; trust the code.
+1. Run `git log --oneline -20` — top commits should include `8560162` (tickRate 20Hz) → `5369df8` (matchmaker 2s) → `e58c22b` (leaderboard link in record card) → `b33987e` (mobile 400px) → `987c89a` (drop Play Again) → `fc0a33e` (leaderboard ranked list) → `453cabd` (home single-col) → `56bafdd` (editorial primitives) → `956baad` (M3 plan snapshot). If not, the state described in §3 may have drifted; trust the code.
 2. `docker ps` — if Nakama + Postgres are up, skip to the task. Otherwise `npm run dev`. **Known proxy gotcha:** if BuildKit stalls on `[internal] load metadata`, pre-pull the base images via `docker pull heroiclabs/nakama:3.38.0` + `docker pull heroiclabs/nakama-pluginbuilder:3.38.0`, then run with `--pull=never` (see §5 gotcha 11).
-3. Read `PLAN.md` §4 (decisions) and §5 (gotchas) before touching server code. **Most bugs we've hit are foot-guns listed there.**
-4. **Commit cadence: one meaningful chunk per commit, conventional-style messages (`feat(server): ...`, `fix(client): ...`). Don't push until asked.**
-5. Start at §6.1 (M4 — production deploy) unless directed otherwise.
+3. Read `PLAN.md` §4 (decisions) and §5 (gotchas) before touching server or design code. **Most bugs we've hit are foot-guns listed there** — especially gotcha 15 (design restraint) before any UI work.
+4. **Commit cadence: one meaningful chunk per commit, conventional-style messages (`feat(server): ...`, `fix(client): ...`). No `Co-Authored-By` trailer. Don't push until asked.**
+5. Start at §6.1 (M4b — Heroku + Vercel deploy) unless directed otherwise.
