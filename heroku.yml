@@ -1,0 +1,14 @@
+# -----------------------------------------------------------------------------
+# Heroku app manifest.
+#
+# `heroku stack:set container` tells Heroku to build the web dyno from this
+# Dockerfile instead of a buildpack. The Dockerfile's CMD (the entrypoint
+# shim) is the only thing that runs — no `run:` block needed.
+#
+# No `release:` phase either: the shim runs `nakama migrate up` on every
+# dyno boot, which is the documented Nakama pattern and survives restarts
+# cleanly without a separate migration container.
+# -----------------------------------------------------------------------------
+build:
+  docker:
+    web: server/Dockerfile.heroku
