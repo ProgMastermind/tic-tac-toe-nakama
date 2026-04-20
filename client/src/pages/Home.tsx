@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Wordmark } from "@/components/brand/Wordmark";
 import { Button } from "@/components/ui/Button";
@@ -42,8 +42,14 @@ export default function Home() {
   } = useNakama();
   const { stats } = useStats();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [mode, setMode] = useState<GameMode>("classic");
+  // `?mode=classic|timed` preselects the mode toggle when the user
+  // lands here from EndOverlay's "Play again" — keeps the rematch a
+  // single click away.
+  const initialMode: GameMode =
+    searchParams.get("mode") === "timed" ? "timed" : "classic";
+  const [mode, setMode] = useState<GameMode>(initialMode);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);

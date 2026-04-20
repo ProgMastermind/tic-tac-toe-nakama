@@ -41,6 +41,18 @@ export default function Game() {
     }
   }, [leave, navigate]);
 
+  // "Play again" keeps the current mode — the Home page reads `?mode=`
+  // and pre-selects it so the user lands one click away from queueing
+  // another round of what they were already playing.
+  const onPlayAgain = useCallback(async () => {
+    try {
+      await leave();
+    } finally {
+      const next = state?.mode === "timed" ? "timed" : "classic";
+      navigate(`/?mode=${next}`);
+    }
+  }, [leave, navigate, state?.mode]);
+
   // Copy the room code to the clipboard for the creator's convenience.
   const copyCode = useCallback(async () => {
     if (!codeFromLobby) return;
@@ -218,6 +230,7 @@ export default function Game() {
             end={endReason}
             myUserId={myUserId}
             onBackToLobby={onBackToLobby}
+            onPlayAgain={onPlayAgain}
           />
         ) : null}
       </motion.section>

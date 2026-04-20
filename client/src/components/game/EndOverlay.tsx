@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import confetti from "canvas-confetti";
 
 import { Button } from "@/components/ui/Button";
+import { useStats } from "@/hooks/useStats";
 import type { Mark, MatchEndedMessage, MatchStateMessage } from "@/types/match";
 
 import styles from "./EndOverlay.module.css";
@@ -11,20 +12,37 @@ interface EndOverlayProps {
   end: MatchEndedMessage;
   myUserId: string | null;
   onBackToLobby(): void;
+  onPlayAgain?(): void;
 }
 
 /**
  * End-of-match overlay. Derives "did I win" from the server's winner
  * field (never derives anything from the board locally). Confetti fires
  * once on mount for the winner only — losing and drawing stay quiet.
+ * Refreshes the stats hook on mount so the "Your record" echo shows the
+ * counts including this match.
  */
-export function EndOverlay({ state, end, myUserId, onBackToLobby }: EndOverlayProps) {
+export function EndOverlay({
+  state,
+  end,
+  myUserId,
+  onBackToLobby,
+  onPlayAgain,
+}: EndOverlayProps) {
+  const { stats, refresh } = useStats();
   const winnerUserId = end.winner ?? state.winner ?? "";
   const isDraw = !winnerUserId;
   const isWin = !!myUserId && winnerUserId === myUserId;
   const winnerName = winnerUserId ? state.usernames[winnerUserId] ?? "Winner" : "";
   const winnerMark: Mark | null =
     (winnerUserId && (state.markByUserId[winnerUserId] as Mark)) || null;
+
+  // Re-pull the record so the echo reflects this match. The server writes
+  // stats in the same tick as OpMatchEnded, so by the time we mount the
+  // row on disk is already updated.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   useEffect(() => {
     if (!isWin) return;
@@ -54,8 +72,44 @@ export function EndOverlay({ state, end, myUserId, onBackToLobby }: EndOverlayPr
         <span className={styles.eyebrow}>{eyebrow}</span>
         <h2 className={styles.title}>{headline(end, isWin, isDraw, winnerName, winnerMark)}</h2>
         <p className={styles.body}>{bodyCopy(end)}</p>
+
+        <dl className={styles.record} aria-label="Your record">
+          <div className={styles.recordItem}>
+            <dt>W / L / D</dt>
+            <dd>
+              <span className={styles.recordStrong}>{stats.wins}</span>
+              <span className={styles.recordSep}> · </span>
+              {stats.losses}
+              <span className={styles.recordSep}> · </span>
+              {stats.draws}
+            </dd>
+          </div>
+          <div className={styles.recordDivider} aria-hidden />
+          <div className={styles.recordItem}>
+            <dt>Streak</dt>
+            <dd>
+              <span
+                className={`${styles.recordStrong} ${stats.currentStreak > 0 ? styles.recordAccent : ""}`}
+              >
+                {stats.currentStreak}
+              </span>
+              <span className={styles.recordSep}> / </span>
+              {stats.bestStreak}
+            </dd>
+          </div>
+        </dl>
+
         <div className={styles.actions}>
-          <Button onClick={onBackToLobby} size="md">
+          {onPlayAgain ? (
+            <Button onClick={onPlayAgain} size="md">
+              Play again
+            </Button>
+          ) : null}
+          <Button
+            onClick={onBackToLobby}
+            size="md"
+            variant={onPlayAgain ? "secondary" : "primary"}
+          >
             Back to lobby
           </Button>
         </div>
