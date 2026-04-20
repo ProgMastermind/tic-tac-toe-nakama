@@ -85,9 +85,19 @@ const JoinDeadlineSeconds = 120
 // before the match is forfeited in their opponent's favour.
 const DisconnectGraceSeconds = 20
 
-// EmptyMatchTicks is how many ticks of full emptiness we allow before the
-// match is torn down. Given tickRate=1 this is the number of seconds.
-const EmptyMatchTicks = 30
+// TickRate is how many times per second MatchLoop runs. 20Hz gives ~50ms
+// worst-case latency on move propagation (messages queue between ticks),
+// which is below the human "instant" threshold. Our loop does O(1) work
+// per tick so the CPU cost is negligible at any realistic match count.
+const TickRate = 20
+
+// EmptyMatchSeconds is the wall-clock window a finished match stays alive
+// with zero attached presences before Nakama tears it down. Expressed in
+// seconds so a future TickRate change doesn't silently retune the timeout.
+const EmptyMatchSeconds = 30
+
+// EmptyMatchTicks is EmptyMatchSeconds translated into MatchLoop iterations.
+const EmptyMatchTicks = EmptyMatchSeconds * TickRate
 
 // -----------------------------------------------------------------------------
 // Match state. This is the authoritative server-side representation. Only a

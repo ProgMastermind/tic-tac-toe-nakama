@@ -72,10 +72,11 @@ func (m *Match) MatchInit(
 	logger.Info("MatchInit match=%s mode=%s code=%q expected=%v",
 		matchID, mode, code, expectedUsers)
 
-	// tickRate=1 — moves arrive as messages regardless of tick, and the
-	// only job the tick has is checking time-based deadlines. ±1s resolution
-	// is imperceptible in a 30-second turn timer.
-	return state, 1, labelJSON
+	// 20Hz tick rate keeps move-apply latency under ~50ms worst case so
+	// players get near-instant feedback. Timers are still checked every
+	// tick but their thresholds are all measured in milliseconds so the
+	// higher rate costs us nothing in accuracy or CPU.
+	return state, TickRate, labelJSON
 }
 
 // readStringSlice coerces a []interface{} or []string param into []string.
