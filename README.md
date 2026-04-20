@@ -5,6 +5,10 @@ validation, turn enforcement, win/draw detection, timers, and forfeits — runs
 inside a Go match handler on a [Nakama](https://heroiclabs.com/nakama) server.
 The browser is a thin render layer driven by server broadcasts.
 
+> **Live:** client at `https://tic-tac-toe-nakama.vercel.app` · server at
+> `https://tic-tac-toe-nakama.herokuapp.com`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+> for the full deploy walkthrough.
+
 ## Quick start (one command)
 
 From a fresh clone on Windows, macOS, or Linux:
@@ -64,8 +68,8 @@ Prerequisites: **Docker Desktop** running, and **Node.js 18+** on `PATH`.
 - Auto-forfeit on turn timeout or disconnect (20 s grace)
 - Mobile-first responsive layout
 
-Matchmaker queue, rehydrate-on-refresh, and the global leaderboard land in
-M2–M3.
+Public matchmaker queue, rehydrate-on-refresh, and the global leaderboard with
+per-user stats are all live as of M3.
 
 ## Tech Stack
 
@@ -75,8 +79,8 @@ M2–M3.
 | Client   | `@heroiclabs/nakama-js` 2.8                       |
 | Backend  | Nakama 3.38 + Go 1.26 plugin (`.so`) match handler |
 | DB       | PostgreSQL 15                                     |
-| Infra    | Docker Compose (local), DigitalOcean + Caddy (prod) |
-| Hosting  | Vercel (client) + DigitalOcean droplet (server)   |
+| Infra    | Docker Compose (local), Heroku container dyno (prod) |
+| Hosting  | Vercel (client) + Heroku (server + Postgres Mini) |
 
 ## Repository Layout
 
@@ -93,13 +97,19 @@ client/                 React + Vite app
 
 server/
   go-module/            Go plugin: main.go, match_handler.go, state.go, rpc.go
-  Dockerfile            Multi-stage: pluginbuilder → nakama
+  Dockerfile            Local multi-stage: pluginbuilder → nakama
+  Dockerfile.heroku     Heroku production image (prod.yml + entrypoint shim)
+  heroku-entrypoint.sh  Rewrites DATABASE_URL and binds to $PORT
 
 deploy/
-  docker-compose.yml    nakama + postgres
+  docker-compose.yml    nakama + postgres (local)
   local.yml             Nakama runtime config (dev)
+  prod.yml              Nakama runtime config (prod, secrets injected at boot)
 
+heroku.yml              Heroku container manifest
 scripts/                Cross-platform orchestration (setup, dev, tests)
+docs/
+  DEPLOYMENT.md         Heroku + Vercel walkthrough
 ```
 
 ## Design decisions
@@ -119,11 +129,10 @@ scripts/                Cross-platform orchestration (setup, dev, tests)
 ## Milestones
 
 - **M1** ✅ — Local match: Go handler, private rooms via RPC, React Game page.
-  Two browsers can play a full classic or timed match end-to-end.
-- **M2** — Public matchmaker queue + rehydrate RPC + reconnect flow.
-- **M3** — Global leaderboard + per-user stats (wins/losses/streak).
-- **M4** — Deploy: DigitalOcean droplet + Caddy TLS + Postgres backups +
-  Vercel, plus full deployment documentation.
+- **M2** ✅ — Public matchmaker queue + rehydrate RPC + reconnect flow.
+- **M3** ✅ — Global leaderboard + per-user stats (wins/losses/streak).
+- **M4a** ✅ — Richer editorial redesign across Home, Game, Leaderboard, EndOverlay.
+- **M4b** ✅ — Heroku container deploy (server) + Vercel (client). See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## License
 
