@@ -8,7 +8,11 @@
 # No `release:` phase either: the shim runs `nakama migrate up` on every
 # dyno boot, which is the documented Nakama pattern and survives restarts
 # cleanly without a separate migration container.
+#
+# Dockerfile lives at the repo root (not under server/) because heroku.yml
+# uses the Dockerfile's directory as the Docker build context, and we need
+# to COPY from both server/ and deploy/ — only possible with root context.
 # -----------------------------------------------------------------------------
 build:
   docker:
-    web: server/Dockerfile.heroku
+    web: Dockerfile.heroku

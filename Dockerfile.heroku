@@ -1,8 +1,10 @@
 # -----------------------------------------------------------------------------
 # Heroku production image for the Nakama server + Go plugin.
 #
-# Must be built with the repository root as the build context (heroku.yml
-# handles that automatically — `docker: web: server/Dockerfile.heroku`).
+# MUST live at the repository root. Heroku's heroku.yml uses the directory
+# containing the Dockerfile as the Docker build context, and there's no
+# flag in heroku.yml to override that — so the only way to COPY files
+# from both server/ and deploy/ is to keep this file at the root.
 #
 # Differences from server/Dockerfile (local):
 #   - Copies deploy/prod.yml instead of deploy/local.yml

@@ -98,14 +98,14 @@ client/                 React + Vite app
 server/
   go-module/            Go plugin: main.go, match_handler.go, state.go, rpc.go
   Dockerfile            Local multi-stage: pluginbuilder → nakama
-  Dockerfile.heroku     Heroku production image (prod.yml + entrypoint shim)
-  heroku-entrypoint.sh  Rewrites DATABASE_URL and binds to $PORT
+  heroku-entrypoint.sh  Rewrites DATABASE_URL and binds to $PORT (prod)
 
 deploy/
   docker-compose.yml    nakama + postgres (local)
   local.yml             Nakama runtime config (dev)
   prod.yml              Nakama runtime config (prod, secrets injected at boot)
 
+Dockerfile.heroku       Heroku production image (root-level — see heroku.yml)
 heroku.yml              Heroku container manifest
 scripts/                Cross-platform orchestration (setup, dev, tests)
 docs/

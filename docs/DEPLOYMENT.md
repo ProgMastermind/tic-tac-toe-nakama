@@ -2,7 +2,7 @@
 
 This document walks through a cold deploy of the tic-tac-toe app to
 production. The server runs on Heroku as a container dyno with a
-Heroku Postgres Mini attached; the client ships as a static Vite
+Heroku Postgres Essential-0 attached; the client ships as a static Vite
 bundle on Vercel.
 
 Runtime cost at the end: ~$12/month ($7 Basic dyno + $5 Postgres Mini,
@@ -38,10 +38,10 @@ Vercel just needs a GitHub-linked account at https://vercel.com — no CLI requi
 ```sh
 heroku create tic-tac-toe-nakama --region eu
 heroku stack:set container --app tic-tac-toe-nakama
-heroku addons:create heroku-postgresql:mini --app tic-tac-toe-nakama
+heroku addons:create heroku-postgresql:essential-0 --app tic-tac-toe-nakama
 ```
 
-`mini` is the $5/mo tier (10k rows, 1 GB). The addon will export
+`essential-0` is Heroku's current $5/mo tier (formerly called `mini`). The addon will export
 `DATABASE_URL` onto the dyno automatically — the entrypoint shim picks it
 up from there.
 
@@ -94,7 +94,7 @@ Watch the build. Success looks like:
 
 ```
 ...
------> Building web (server/Dockerfile.heroku)
+-----> Building web (Dockerfile.heroku)
 ...
 Successfully built <hash>
 ...
@@ -188,7 +188,7 @@ like `https://tic-tac-toe-nakama.vercel.app`.
 
 ### `plugin was built with a different version of package ...`
 
-The `nakama-pluginbuilder` tag in [server/Dockerfile.heroku](../server/Dockerfile.heroku)
+The `nakama-pluginbuilder` tag in [Dockerfile.heroku](../Dockerfile.heroku)
 drifted out of sync with the `nakama` runtime tag. They MUST match
 (currently both `3.38.0`).
 
