@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import styles from "./AppStatus.module.css";
 
 // AppStatus renders a quiet full-screen indicator while NakamaProvider is
@@ -5,7 +7,18 @@ import styles from "./AppStatus.module.css";
 // than inside NakamaProvider so routing / app shell concerns do not leak
 // into the connection logic.
 
+// Suppress the splash on fast connects — if the socket attaches within
+// 250ms (warm cache, persisted session) the user never sees a loading
+// screen at all. Slow cold starts still get the splash after this delay.
+const SPLASH_REVEAL_MS = 250;
+
 export function Connecting() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), SPLASH_REVEAL_MS);
+    return () => clearTimeout(t);
+  }, []);
+  if (!visible) return null;
   return (
     <div className={styles.wrap} role="status" aria-live="polite">
       <div className={styles.inner}>

@@ -16,6 +16,7 @@ import {
   guestUsernameFor,
   readConnectionConfig,
 } from "@/lib/nakama";
+import { clearSession, restoreSession, saveSession } from "@/lib/session";
 import type { GetCurrentMatchResponse } from "@/types/match";
 
 /*
@@ -116,13 +117,19 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [displayName, setDisplayNameState] = useState<string>("");
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectGeneration, setReconnectGeneration] = useState(0);
 
   // Device identity is resolved once and never mutates for the lifetime
   // of the app. Stable across reloads via localStorage.
   const deviceId = useRef<string>(ensureDeviceId()).current;
+
+  // Seed the display name from the guest-name convention so the masthead
+  // never flashes empty while the background getAccount call completes.
+  // The real name from the server overwrites this once the fetch returns.
+  const [displayName, setDisplayNameState] = useState<string>(() =>
+    guestUsernameFor(deviceId),
+  );
 
   // Handler registries. We keep Sets so a page can register and
   // unregister its handler without stepping on any other subscriber.
@@ -208,16 +215,19 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
 
     async function connect() {
       try {
-        const next = await client.authenticateDevice(
-          deviceId,
-          true,
-          guestUsernameFor(deviceId),
-        );
+        // Try to reuse a cached session before falling back to a fresh
+        // authenticateDevice call. Saves one ~200ms HTTP hop on every
+        // page reload until the stored token expires.
+        let next = restoreSession();
+        if (!next) {
+          next = await client.authenticateDevice(
+            deviceId,
+            true,
+            guestUsernameFor(deviceId),
+          );
+        }
         if (cancelled) return;
-
-        const account = await client.getAccount(next);
-        if (cancelled) return;
-        const resolvedName = account.user?.display_name || account.user?.username || "";
+        saveSession(next);
 
         const liveSocket = client.createSocket(useSSL, /*verbose*/ false);
         liveSocket.ondisconnect = () => handleDisconnect(next);
@@ -231,15 +241,33 @@ export function NakamaProvider({ children }: { children: ReactNode }) {
 
         setSession(next);
         setSocket(liveSocket);
-        setDisplayNameState(resolvedName);
         setStatus("ready");
         setError(null);
         setIsReconnecting(false);
         // First successful connect counts as generation 1 so a rehydrate
         // consumer keyed on reconnectGeneration runs once at boot too.
         setReconnectGeneration((g) => g + 1);
+
+        // Fetch the canonical display name in the background. Kept off
+        // the splash critical path so the home page renders as soon as
+        // the socket is live. The seed (guestUsernameFor) stays visible
+        // until this resolves.
+        client
+          .getAccount(next)
+          .then((account) => {
+            if (cancelled) return;
+            const resolvedName =
+              account.user?.display_name || account.user?.username || "";
+            if (resolvedName) setDisplayNameState(resolvedName);
+          })
+          .catch(() => {
+            // Non-fatal — the seeded guest name stays in place.
+          });
       } catch (err) {
         if (cancelled) return;
+        // A rejected token (server rotated keys, account deleted, etc.)
+        // would also land here; drop the cache so a reload re-authenticates.
+        clearSession();
         const message =
           err instanceof Error ? err.message : "Unable to reach the server.";
         setError(message);
