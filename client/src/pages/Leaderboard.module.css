@@ -271,6 +271,10 @@
 /* ---- Mobile -------------------------------------------------------- */
 
 @media (max-width: 520px) {
+  .screen {
+    gap: var(--space-5);
+    padding-block: var(--space-4) var(--space-6);
+  }
   .row {
     padding: var(--space-3) var(--space-4);
     gap: var(--space-3);
@@ -283,5 +287,25 @@
   }
   .subline {
     font-size: 0.7rem;
+  }
+}
+
+/* Very narrow phones: shrink the monogram and drop the trailing mode
+ * split from the subline so the row stops clipping on 360-400px. */
+@media (max-width: 400px) {
+  .monogram {
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: var(--font-size-xs);
+  }
+  .row {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+  .subline {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 18ch;
   }
 }

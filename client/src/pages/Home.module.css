@@ -344,10 +344,42 @@
 /* ---- Mobile -------------------------------------------------------- */
 
 @media (max-width: 520px) {
+  .screen {
+    gap: var(--space-5);
+    padding-block: var(--space-4) var(--space-6);
+  }
   .record {
     grid-template-columns: 1fr;
   }
   .card {
     padding: var(--space-5);
+  }
+  /* Join row stacks vertically so the input keeps its full "Join with
+   * a code" label and the button doesn't get cropped next to it. */
+  .joinRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .joinRow > :first-child {
+    flex: initial;
+  }
+  /* Matchmaker searching state: on narrow widths the Cancel button
+   * wraps below the dot + text instead of fighting for horizontal room. */
+  .searching {
+    flex-wrap: wrap;
+  }
+  .searchingText {
+    flex: 1 1 calc(100% - 2rem);
+  }
+  .brandbar {
+    gap: var(--space-3);
+  }
+  .brandbarMeta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .title {
+    font-size: clamp(2rem, 9vw, 2.75rem);
   }
 }
