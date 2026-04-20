@@ -30,13 +30,15 @@ body {
   line-height: var(--line-normal);
   color: var(--color-ink);
   background:
+    var(--grain-url),
     radial-gradient(
       ellipse 80% 60% at 50% -10%,
       color-mix(in oklab, var(--color-accent) 4%, transparent),
       transparent 60%
     ),
     var(--color-bg);
-  background-attachment: fixed;
+  background-attachment: fixed, fixed, fixed;
+  background-repeat: repeat, no-repeat, no-repeat;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -145,6 +147,24 @@ a:hover {
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.smallCaps {
+  font-variant-caps: all-small-caps;
+  letter-spacing: var(--letter-eyebrow);
+  font-weight: 600;
+}
+
+/* Drop cap on the first letter of a paragraph — pulled slightly above the
+ * baseline so the surrounding copy isn't visibly pushed down. */
+.dropCap::first-letter {
+  font-family: var(--font-display);
+  font-size: 3.4em;
+  font-weight: 500;
+  float: left;
+  line-height: 0.85;
+  margin: 0.12em 0.08em 0 -0.02em;
+  color: var(--color-accent);
 }
 
 .visually-hidden {

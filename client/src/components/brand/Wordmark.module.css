@@ -1,0 +1,63 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.mark {
+  display: block;
+  flex: 0 0 auto;
+  color: var(--color-ink-muted);
+}
+
+.dot {
+  fill: currentColor;
+  opacity: 0.55;
+}
+
+.dotAccent {
+  fill: var(--color-accent);
+  opacity: 1;
+}
+
+.word {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: var(--letter-tight);
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.wordItalic {
+  font-style: italic;
+  color: var(--color-accent);
+}
+
+.size_sm .mark {
+  width: 18px;
+  height: 18px;
+}
+
+.size_sm .word {
+  font-size: var(--font-size-sm);
+}
+
+.size_md .mark {
+  width: 22px;
+  height: 22px;
+}
+
+.size_md .word {
+  font-size: var(--font-size-md);
+}
+
+.size_lg .mark {
+  width: 32px;
+  height: 32px;
+}
+
+.size_lg .word {
+  font-size: var(--font-size-xl);
+}

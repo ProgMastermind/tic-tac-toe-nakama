@@ -1,0 +1,41 @@
+.rule {
+  border: none;
+  height: 1px;
+  width: 100%;
+  margin: 0;
+  background: var(--color-border);
+}
+
+.double {
+  height: 4px;
+  background:
+    linear-gradient(var(--color-border), var(--color-border)) top/100% 1px no-repeat,
+    linear-gradient(var(--color-border), var(--color-border)) bottom/100% 1px no-repeat;
+  background-color: transparent;
+}
+
+.labeled {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: auto;
+  background: none;
+}
+
+.labeled::before,
+.labeled::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+  font-family: var(--font-body);
+  flex-shrink: 0;
+}
