@@ -50,6 +50,14 @@ match:
   label_update_interval_ms: 1000
   call_timeout_ms: 500
 
+# Matchmaker scans the pending ticket pool every interval_sec. The default
+# of 15s is tuned for large games where batching helps; for a 1v1 board
+# with a tiny pool, 2s keeps the perceived wait under a second without
+# measurable CPU cost.
+matchmaker:
+  interval_sec: 2
+  max_intervals: 3
+
 # Console is exposed only on the Docker network; docker-compose binds port
 # 7351 to 127.0.0.1, so it is not reachable from outside the host in dev.
 console:
