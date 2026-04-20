@@ -49,4 +49,10 @@ COPY server/heroku-entrypoint.sh /nakama/heroku-entrypoint.sh
 
 # Heroku ignores EXPOSE and routes a single dynamic $PORT to the dyno; the
 # shim reads $PORT at runtime and passes it via --socket.port.
-CMD ["/nakama/heroku-entrypoint.sh"]
+#
+# The base image sets ENTRYPOINT to the nakama binary (wrapped in tini),
+# so any CMD we set would be *appended as arguments* to nakama instead
+# of replacing it. Making the shim the ENTRYPOINT ensures it actually
+# runs and can in turn exec into nakama with our flags.
+ENTRYPOINT ["/nakama/heroku-entrypoint.sh"]
+CMD []
