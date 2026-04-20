@@ -418,39 +418,50 @@ function RecordCard({ stats }: { stats: StatsSummary }) {
   const streakAlive = stats.currentStreak > 0;
   return (
     <aside className={styles.record} aria-label="Your record">
-      <div className={styles.recordCell}>
-        <span className={styles.recordLabel}>Totals</span>
-        <div className={styles.recordNumRow}>
-          <span className={styles.recordNumStrong}>{stats.wins}</span>
-          <span className={styles.recordNumSep}>·</span>
-          <span className={styles.recordNum}>{stats.losses}</span>
-          <span className={styles.recordNumSep}>·</span>
-          <span className={styles.recordNum}>{stats.draws}</span>
+      <div className={styles.recordGrid}>
+        <div className={styles.recordCell}>
+          <span className={styles.recordLabel}>Totals</span>
+          <div className={styles.recordNumRow}>
+            <span className={styles.recordNumStrong}>{stats.wins}</span>
+            <span className={styles.recordNumSep}>·</span>
+            <span className={styles.recordNum}>{stats.losses}</span>
+            <span className={styles.recordNumSep}>·</span>
+            <span className={styles.recordNum}>{stats.draws}</span>
+          </div>
+          <span className={styles.recordSubLabel}>wins · losses · draws</span>
         </div>
-        <span className={styles.recordSubLabel}>wins · losses · draws</span>
+        <div className={styles.recordCell}>
+          <span className={styles.recordLabel}>Streak</span>
+          <div className={styles.recordNumRow}>
+            <span
+              className={`${styles.recordNumStrong} ${streakAlive ? styles.recordNumAccent : ""}`}
+            >
+              {stats.currentStreak}
+            </span>
+            <span className={styles.recordNumSep}>/</span>
+            <span className={styles.recordNum}>{stats.bestStreak}</span>
+          </div>
+          <span className={styles.recordSubLabel}>current · best</span>
+        </div>
+        <div className={styles.recordCell}>
+          <span className={styles.recordLabel}>By mode</span>
+          <div className={styles.recordNumRow}>
+            <span className={styles.recordNumStrong}>{stats.classicWins}</span>
+            <span className={styles.recordNumSep}>/</span>
+            <span className={styles.recordNum}>{stats.timedWins}</span>
+          </div>
+          <span className={styles.recordSubLabel}>classic · timed</span>
+        </div>
       </div>
-      <div className={styles.recordCell}>
-        <span className={styles.recordLabel}>Streak</span>
-        <div className={styles.recordNumRow}>
-          <span
-            className={`${styles.recordNumStrong} ${streakAlive ? styles.recordNumAccent : ""}`}
-          >
-            {stats.currentStreak}
+      <Link to="/leaderboard" className={styles.recordLink}>
+        <span className={styles.recordLinkEyebrow}>Global standings</span>
+        <span>
+          See the top players{" "}
+          <span className={styles.recordLinkArrow} aria-hidden>
+            →
           </span>
-          <span className={styles.recordNumSep}>/</span>
-          <span className={styles.recordNum}>{stats.bestStreak}</span>
-        </div>
-        <span className={styles.recordSubLabel}>current · best</span>
-      </div>
-      <div className={styles.recordCell}>
-        <span className={styles.recordLabel}>By mode</span>
-        <div className={styles.recordNumRow}>
-          <span className={styles.recordNumStrong}>{stats.classicWins}</span>
-          <span className={styles.recordNumSep}>/</span>
-          <span className={styles.recordNum}>{stats.timedWins}</span>
-        </div>
-        <span className={styles.recordSubLabel}>classic · timed</span>
-      </div>
+        </span>
+      </Link>
     </aside>
   );
 }
