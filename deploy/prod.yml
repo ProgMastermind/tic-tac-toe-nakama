@@ -1,0 +1,61 @@
+# -----------------------------------------------------------------------------
+# Nakama runtime configuration for PRODUCTION (Heroku).
+#
+# Secrets are NOT in this file. Every sensitive value (server_key, http_key,
+# encryption keys, console password) is injected as a CLI flag by
+# server/heroku-entrypoint.sh, which reads them from Heroku config vars.
+# That is why the session / socket / runtime blocks below omit those fields
+# — the entrypoint will override them at boot.
+#
+# Keep the shape identical to deploy/local.yml so reviewers can diff the two
+# and immediately see what prod tightens (log level, match queues, etc.).
+# -----------------------------------------------------------------------------
+
+name: ttt-prod
+data_dir: "/nakama/data"
+
+logger:
+  # Stay at INFO in prod — DEBUG floods Heroku's log drain fast and the
+  # Basic dyno only keeps 1500 lines. Flip to DEBUG temporarily with a
+  # `heroku config:set NAKAMA_LOG_LEVEL=DEBUG` + restart if needed.
+  level: "INFO"
+  stdout: true
+
+session:
+  # Same token lifetimes as local — 7-day access, 30-day refresh. Reviewers
+  # coming back after a day won't need to re-auth.
+  token_expiry_sec: 604800
+  refresh_token_expiry_sec: 2592000
+
+socket:
+  # Long idle timeout — a tic-tac-toe match with a thinking player can sit
+  # idle for most of a turn's 30-second window without us wanting to drop
+  # the socket. Heroku's router also has its own 55-second idle timeout,
+  # so our pong_wait (25s) stays comfortably inside both.
+  idle_timeout_ms: 60000
+  write_wait_ms: 5000
+  pong_wait_ms: 25000
+
+# Authoritative match settings. call_timeout_ms is the maximum time a single
+# tick or callback may take before Nakama forcibly cancels it; our ticks do
+# O(1) work so 500ms is a huge safety margin.
+match:
+  input_queue_size: 128
+  call_queue_size: 128
+  join_attempt_queue_size: 128
+  deferred_queue_size: 128
+  join_marker_deadline_ms: 15000
+  max_empty_sec: 30
+  label_update_interval_ms: 1000
+  call_timeout_ms: 500
+
+# Scan the matchmaker pool every 2s — tuned for a 1v1 board with a tiny
+# pool, keeps perceived wait under a second without measurable CPU cost.
+matchmaker:
+  interval_sec: 2
+  max_intervals: 3
+
+# Console is bound to 7351 but NOT routed on Heroku — only $PORT reaches
+# the public internet. Reach the console via `heroku ps:forward 7351:7351`.
+console:
+  port: 7351
